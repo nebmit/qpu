@@ -1,6 +1,6 @@
 # syntax=docker/dockerfile:1
 
-FROM cgr.dev/chainguard/node:latest-dev AS deps
+FROM --platform=$BUILDPLATFORM cgr.dev/chainguard/node:latest-dev AS deps
 WORKDIR /app
 
 COPY package.json package-lock.json ./
