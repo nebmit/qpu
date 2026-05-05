@@ -25,11 +25,9 @@ ENV NODE_ENV=production
 ENV HOST=0.0.0.0
 ENV PORT=3000
 
-COPY --from=build --chown=nonroot:nonroot /app/build ./build
-COPY --from=build --chown=nonroot:nonroot /app/package.json ./package.json
-COPY --from=prod-deps --chown=nonroot:nonroot /app/node_modules ./node_modules
-
-USER nonroot
+COPY --from=build /app/build ./build
+COPY --from=build /app/package.json ./package.json
+COPY --from=prod-deps /app/node_modules ./node_modules
 EXPOSE 3000
 
 CMD ["node", "build"]
