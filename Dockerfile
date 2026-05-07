@@ -30,4 +30,4 @@ COPY --from=build /app/package.json ./package.json
 COPY --from=prod-deps /app/node_modules ./node_modules
 EXPOSE 3000
 
-CMD ["node", "build"]
+ENTRYPOINT ["node", "build"]
