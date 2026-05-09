@@ -7,7 +7,6 @@
         edgeColor,
         edgeScore,
     } from "$lib/utils/data";
-    import type { UiEdge, MetricRanges } from "$lib/types";
 
     type LatticePos = {
         id: number;

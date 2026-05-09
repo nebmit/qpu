@@ -12,7 +12,7 @@
     class="h-11.5 shrink-0 bg-(--bg) border-b border-(--border) flex items-center px-4 gap-1"
 >
     <div class="flex gap-0.5">
-        {#each METRICS as m}
+        {#each METRICS as m (m.k)}
             <button
                 class="m-tab {dashboardState.metricMode === m.k
                     ? 'active'

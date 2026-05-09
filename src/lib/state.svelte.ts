@@ -1,3 +1,4 @@
+import { SvelteSet } from 'svelte/reactivity';
 import { QPU_DEVICES, computeRanges, TOTAL_QUBITS, avg, buildBaseEdges, buildUiSnapshot, emptySnapshot } from '$lib/utils/data';
 import type { Dataset, UiEdge, UiSnapshot } from '$lib/types';
 
@@ -30,7 +31,7 @@ export class DashboardState {
     allowedQubitIds = $derived.by(() => {
         const maxReadout = this.errorCutoffs.readoutPct / 100;
         const { minT1, minT2 } = this.coherenceCutoffs;
-        const ids = new Set<number>();
+        const ids = new SvelteSet<number>();
         for (const q of this.snap.qubits) {
             if (!q) continue;
             const roOk = typeof q.readout_error !== 'number' || q.readout_error <= maxReadout;
