@@ -1,2 +1,52 @@
 @import 'tailwindcss';
+@import '@fontsource/dm-sans/300.css';
+@import '@fontsource/dm-sans/400.css';
+@import '@fontsource/dm-sans/500.css';
+@import '@fontsource/dm-sans/600.css';
+@import '@fontsource/dm-mono/300.css';
+@import '@fontsource/dm-mono/400.css';
+@import '@fontsource/dm-mono/500.css';
 @plugin '@tailwindcss/typography';
+
+@theme {
+  --font-sans: 'DM Sans', sans-serif;
+  --font-mono: 'DM Mono', monospace;
+}
+
+:root {
+  --bg:           #f2f0eb;
+  --sidebar-bg:   #eae7e0;
+  --border:       rgba(0,0,0,0.08);
+  --border-mid:   rgba(0,0,0,0.12);
+  --text:         #1c1917;
+  --text-2:       #5a5650;
+  --text-3:       #9a958e;
+  --coral:        oklch(64% 0.09 28);
+  --cyan:         oklch(62% 0.1 198);
+  --coral-light:  oklch(90% 0.04 28);
+  --cyan-light:   oklch(90% 0.04 198);
+}
+
+html, body {
+  width: 100%; height: 100%;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(3px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+::-webkit-scrollbar { width: 3px; }
+::-webkit-scrollbar-thumb { background: rgba(0,0,0,0.12); border-radius: 2px; }
+
+input[type=range] {
+  -webkit-appearance: none; appearance: none;
+  width: 100%; height: 2px;
+  background: rgba(0,0,0,0.12); border-radius: 1px;
+  outline: none; cursor: pointer;
+}
+input[type=range]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 12px; height: 12px; border-radius: 50%;
+  background: var(--text); cursor: pointer;
+}
