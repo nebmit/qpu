@@ -165,7 +165,7 @@ export function buildUiSnapshot(snap: Snapshot, baseEdges: UiEdge[], totalQubits
         return { ...e, cx_error };
     });
 
-    return { date: snap.date, timestamp: snap.timestamp, qubits, edges };
+    return { date: snap.t, timestamp: snap.ts, qubits, edges };
 }
 
 export function emptySnapshot(edges: UiEdge[], totalQubits: number): UiSnapshot {

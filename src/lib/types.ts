@@ -17,8 +17,8 @@ export interface GateState {
 }
 
 export interface Snapshot {
-    date: string
-    timestamp: string   // full ISO timestamp
+    t: string           // date string e.g. "2024-11-12"
+    ts: string          // full ISO timestamp
     qubits: QubitState[]
     gates: GateState[]
 }
