@@ -296,14 +296,27 @@ export function findCluster(
 
 export function metricNodeColor(t: number) {
     t = Math.max(0, Math.min(1, t));
-    const L = 88 - t * 34;
-    const C = 0.02 + t * 0.1;
-    const H = 28;
+    // Diverging: amber (t=0, bad) → bright white (t=0.5) → muted steel blue (t=1, good).
+    // Good end shares the edge hue family so they read as one coherent "quality" layer.
+    let L: number, C: number, H: number;
+    if (t <= 0.5) {
+        const s = t * 2;
+        L = 58 + s * 37;      // 58 → 95
+        C = 0.19 - s * 0.18;  // 0.19 → 0.01
+        H = 35;
+    } else {
+        const s = (t - 0.5) * 2;
+        L = 95 - s * 40;      // 95 → 55
+        C = 0.01 + s * 0.07;  // 0.01 → 0.08
+        H = 220;
+    }
     return `oklch(${L.toFixed(1)}% ${C.toFixed(3)} ${H})`;
 }
 
 export function edgeColor(t: number) {
     t = Math.max(0, Math.min(1, t));
-    const L = 82 - t * 20;
-    return `oklch(${L.toFixed(1)}% 0.025 28)`;
+    // Single cool ramp: light slate (t=0, high error) → deep slate (t=1, low error).
+    const L = 80 - t * 28;    // 80 → 52
+    const C = 0.03 + t * 0.07; // 0.03 → 0.10
+    return `oklch(${L.toFixed(1)}% ${C.toFixed(3)} 220)`;
 }

@@ -30,10 +30,8 @@
 
     const BASE_PAD = { t: 60, l: 120, r: 120, b: 60 };
 
-    const DEAD_EDGE_STROKE = "oklch(80% 0 0)";
-    const DEAD_NODE_FILL = "oklch(82% 0 0)";
-    const CYAN = "oklch(62% 0.1 198)";
-    const CYAN_STROKE = "oklch(55% 0.13 198)";
+    const DEAD_EDGE_STROKE = "oklch(82% 0.005 220)";
+    const DEAD_NODE_FILL = "oklch(87% 0.005 220)";
 
     const PAD = $derived.by(() => {
         const largeScreen = width >= 1200;
@@ -117,7 +115,7 @@
     <svg {width} {height} class="block">
         <defs>
             <filter id="f-glow" x="-100%" y="-100%" width="300%" height="300%">
-                <feGaussianBlur stdDeviation="4" result="b" />
+                <feGaussianBlur stdDeviation="5" result="b" />
                 <feMerge
                     ><feMergeNode in="b" />
                     <feMergeNode in="SourceGraphic" /></feMerge
@@ -167,18 +165,16 @@
                 {@const b = xy.get(e.target)}
                 {#if a && b}
                     {@const inCl = clSet.has(e.source) && clSet.has(e.target)}
-                    {@const hasErr =
-                        typeof e.cx_error === "number" &&
-                        Number.isFinite(e.cx_error)}
+                    {@const hasErr = typeof e.cx_error === "number" && Number.isFinite(e.cx_error)}
                     {@const t = edgeScore(e, dashboardState.ranges)}
                     <line
                         x1={a.x}
                         y1={a.y}
                         x2={b.x}
                         y2={b.y}
-                        stroke={inCl ? CYAN : edgeColor(t)}
+                        stroke={edgeColor(t)}
                         stroke-width={inCl ? 1.8 : 1}
-                        stroke-opacity={inCl ? 0.8 : hasErr ? 0.45 : 0.2}
+                        stroke-opacity={inCl ? 0.75 : clSet.size > 0 ? 0.06 : hasErr ? 0.45 : 0.2}
                         stroke-linecap="round"
                     />
                 {/if}
@@ -192,20 +188,15 @@
                 {#if q && p && isAllowed}
                     {@const inCl = clSet.has(pos.id)}
                     {@const isHov = dashboardState.hoveredId === pos.id}
-                    {@const score = metricScore(
-                        q,
-                        dashboardState.metricMode,
-                        dashboardState.ranges,
-                    )}
-                    {@const fill = inCl ? CYAN : metricNodeColor(score)}
+                    {@const score = metricScore(q, dashboardState.metricMode, dashboardState.ranges)}
+                    {@const fill = metricNodeColor(score)}
                     {@const r = isHov ? R * 1.35 : R}
 
                     <!-- svelte-ignore a11y_no_static_element_interactions, a11y_click_events_have_key_events -->
                     <g
                         transform={`translate(${p.x},${p.y})`}
-                        class={interactive
-                            ? "cursor-pointer"
-                            : "pointer-events-none"}
+                        opacity={clSet.size > 0 && !inCl ? 0.22 : 1}
+                        class={interactive ? "cursor-pointer" : "pointer-events-none"}
                         onmouseenter={() => (dashboardState.hoveredId = pos.id)}
                         onmouseleave={() => (dashboardState.hoveredId = null)}
                         onclick={() =>
@@ -215,24 +206,20 @@
                                     : pos.id)}
                     >
                         {#if inCl}
+                            <!-- Halo ring — white in dark mode, dark in light mode -->
                             <circle
-                                r={r + 2.5}
+                                r={r + 4}
                                 fill="none"
-                                stroke={CYAN_STROKE}
-                                stroke-width={1}
-                                stroke-opacity={0.5}
+                                style="stroke: var(--cl-halo)"
+                                stroke-width={2}
                                 filter="url(#f-glow)"
                             />
                         {/if}
                         <circle
                             {r}
                             {fill}
-                            stroke={isHov
-                                ? "rgba(0,0,0,0.35)"
-                                : inCl
-                                  ? CYAN_STROKE
-                                  : "rgba(0,0,0,0.0)"}
-                            stroke-width={isHov || inCl ? 1 : 0}
+                            stroke={isHov ? "rgba(0,0,0,0.3)" : inCl ? "rgba(0,0,0,0.18)" : "rgba(0,0,0,0.09)"}
+                            stroke-width={isHov ? 1 : inCl ? 1 : 0.75}
                             filter={inCl ? "url(#f-glow)" : undefined}
                         />
                     </g>

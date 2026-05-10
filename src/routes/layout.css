@@ -1,52 +1,132 @@
 @import 'tailwindcss';
-@import '@fontsource/dm-sans/300.css';
-@import '@fontsource/dm-sans/400.css';
-@import '@fontsource/dm-sans/500.css';
-@import '@fontsource/dm-sans/600.css';
-@import '@fontsource/dm-mono/300.css';
-@import '@fontsource/dm-mono/400.css';
-@import '@fontsource/dm-mono/500.css';
+@import '@fontsource-variable/geist/index.css';
+@import '@fontsource-variable/geist-mono/index.css';
 @plugin '@tailwindcss/typography';
 
 @theme {
-  --font-sans: 'DM Sans', sans-serif;
-  --font-mono: 'DM Mono', monospace;
+  --font-sans: 'Geist Variable', 'Geist', sans-serif;
+  --font-mono: 'Geist Mono Variable', 'Geist Mono', monospace;
 }
 
+/* ─── Light tokens ─────────────────────────────────────────────── */
 :root {
-  --bg:           #f2f0eb;
-  --sidebar-bg:   #eae7e0;
-  --border:       rgba(0,0,0,0.08);
-  --border-mid:   rgba(0,0,0,0.12);
-  --text:         #1c1917;
-  --text-2:       #5a5650;
-  --text-3:       #9a958e;
-  --coral:        oklch(64% 0.09 28);
-  --cyan:         oklch(62% 0.1 198);
-  --coral-light:  oklch(90% 0.04 28);
-  --cyan-light:   oklch(90% 0.04 198);
+  --bg:           #f6f7f8;
+  --surface:      #ffffff;
+  --sidebar-bg:   #eef0f2;
+  --border:       rgba(15, 23, 42, 0.08);
+  --border-mid:   rgba(15, 23, 42, 0.14);
+  --text:         #0f172a;
+  --text-2:       #475569;
+  --text-3:       #94a3b8;
+
+  /* UI accent – steel blue */
+  --accent:         oklch(40% 0.09 228);
+  --accent-mid:     oklch(50% 0.09 228);
+  --accent-surface: oklch(95% 0.02 228);
+  --accent-border:  oklch(78% 0.05 228);
+
+  /* Cluster halo – dark in light mode for contrast */
+  --cl-halo: rgba(15, 23, 42, 0.45);
+
+  /* Data-viz only – keep existing roles */
+  --data-warm:        oklch(64% 0.09 28);
+  --data-warm-light:  oklch(90% 0.04 28);
+  --data-cool:        oklch(62% 0.10 198);
+  --data-cool-light:  oklch(90% 0.04 198);
+
+  /* Shadows */
+  --shadow-panel: 0 4px 20px rgba(15, 23, 42, 0.08);
+  --shadow-pop:   0 8px 32px rgba(15, 23, 42, 0.12);
+
+  /* Radius */
+  --radius-sm: 6px;
+  --radius-md: 10px;
+}
+
+/* ─── Dark tokens ──────────────────────────────────────────────── */
+[data-theme='dark'] {
+  --bg:           #0d1117;
+  --surface:      #161b22;
+  --sidebar-bg:   #111318;
+  --border:       rgba(255, 255, 255, 0.07);
+  --border-mid:   rgba(255, 255, 255, 0.12);
+  --text:         #e2e8f0;
+  --text-2:       #94a3b8;
+  --text-3:       #4e5a6b;
+
+  --accent:         oklch(62% 0.10 228);
+  --accent-mid:     oklch(70% 0.10 228);
+  --accent-surface: oklch(18% 0.05 228);
+  --accent-border:  oklch(36% 0.08 228);
+
+  /* Cluster halo – white in dark mode */
+  --cl-halo: rgba(255, 255, 255, 0.65);
+
+  --shadow-panel: 0 4px 20px rgba(0, 0, 0, 0.3);
+  --shadow-pop:   0 8px 32px rgba(0, 0, 0, 0.5);
 }
 
 html, body {
   width: 100%; height: 100%;
+  background: var(--bg);
+  color: var(--text);
+}
+
+/* Tabular numerals globally for mono */
+.font-mono, [class*='font-mono'] {
+  font-variant-numeric: tabular-nums;
 }
 
 @keyframes fadeIn {
-  from { opacity: 0; transform: translateY(3px); }
+  from { opacity: 0; transform: translateY(4px); }
   to   { opacity: 1; transform: translateY(0); }
 }
 
+/* ─── Scrollbar ─────────────────────────────────────────────────── */
 ::-webkit-scrollbar { width: 3px; }
-::-webkit-scrollbar-thumb { background: rgba(0,0,0,0.12); border-radius: 2px; }
+::-webkit-scrollbar-thumb {
+  background: var(--border-mid);
+  border-radius: 2px;
+}
 
+/* ─── Range slider ──────────────────────────────────────────────── */
 input[type=range] {
   -webkit-appearance: none; appearance: none;
-  width: 100%; height: 2px;
-  background: rgba(0,0,0,0.12); border-radius: 1px;
+  width: 100%; height: 4px;
+  background: var(--border-mid); border-radius: 2px;
   outline: none; cursor: pointer;
 }
 input[type=range]::-webkit-slider-thumb {
   -webkit-appearance: none;
-  width: 12px; height: 12px; border-radius: 50%;
-  background: var(--text); cursor: pointer;
+  width: 14px; height: 14px; border-radius: 50%;
+  background: var(--surface);
+  border: 2px solid var(--accent);
+  box-shadow: 0 1px 4px rgba(15, 23, 42, 0.15);
+  cursor: pointer;
+  transition: border-color 0.12s, box-shadow 0.12s;
+}
+input[type=range]:focus::-webkit-slider-thumb,
+input[type=range]:hover::-webkit-slider-thumb {
+  border-color: var(--accent-mid);
+  box-shadow: 0 0 0 3px var(--accent-surface);
+}
+input[type=range]:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
+/* ─── Number input ──────────────────────────────────────────────── */
+input[type=number] {
+  -moz-appearance: textfield;
+  appearance: textfield;
+}
+input[type=number]::-webkit-inner-spin-button,
+input[type=number]::-webkit-outer-spin-button {
+  -webkit-appearance: none;
+  appearance: none;
+}
+input[type=number]:focus {
+  outline: none;
+  border-color: var(--accent) !important;
+  box-shadow: 0 0 0 3px var(--accent-surface);
 }
