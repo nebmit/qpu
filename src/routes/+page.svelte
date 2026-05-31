@@ -2,10 +2,10 @@
     import { onMount } from "svelte";
     import { Tween } from "svelte/motion";
     import { cubicOut } from "svelte/easing";
-    import Sidebar from "$lib/components/Sidebar.svelte";
     import Topbar from "$lib/components/Topbar.svelte";
+    import OperatePanel from "$lib/components/OperatePanel.svelte";
+    import ReadPanel from "$lib/components/ReadPanel.svelte";
     import Lattice from "$lib/components/Lattice.svelte";
-    import QubitDetail from "$lib/components/QubitDetail.svelte";
     import { dashboardState } from "$lib/state.svelte";
     import { BASE_POS } from "$lib/utils/data";
     import type { Positions } from "$lib/types";
@@ -60,27 +60,9 @@
     }
 
     onMount(fetchData);
-
-    const NODE_COLOR_LO = "oklch(58% 0.19 35)";   // t=0 bad: rich amber
-    const NODE_COLOR_HI = "oklch(55% 0.08 220)";  // t=1 good: muted steel blue
-    const EDGE_COLOR_LO = "oklch(80% 0.03 220)"; // t=0 high error: light slate
-    const EDGE_COLOR_HI = "oklch(52% 0.10 220)"; // t=1 low error: deep slate
-
-    let nodeLegend = $derived.by(() => {
-        const m = dashboardState.metricMode;
-        const r = dashboardState.ranges;
-        if (m === "T1") return { label: "T₁", lo: `${r.T1[0].toFixed(0)} μs`, hi: `${r.T1[1].toFixed(0)} μs`, reversed: false };
-        if (m === "T2") return { label: "T₂", lo: `${r.T2[0].toFixed(0)} μs`, hi: `${r.T2[1].toFixed(0)} μs`, reversed: false };
-        return { label: "Readout Error", lo: `${(r.readout[0] * 100).toFixed(1)}%`, hi: `${(r.readout[1] * 100).toFixed(1)}%`, reversed: true };
-    });
-
-    let edgeLegend = $derived.by(() => {
-        const r = dashboardState.ranges;
-        return { lo: `${(r.cx[0] * 100).toFixed(2)}%`, hi: `${(r.cx[1] * 100).toFixed(2)}%` };
-    });
 </script>
 
-<!-- Loading screen -->
+<!-- ─── Loading overlay ──────────────────────────────────────────────── -->
 {#if loadStatus === "loading" || loadStatus === "transitioning"}
     <div
         class="loader-overlay fixed inset-0 z-100 flex flex-col items-center justify-center gap-6 bg-(--bg)"
@@ -112,10 +94,11 @@
     </div>
 {/if}
 
+<!-- ─── Error state ──────────────────────────────────────────────────── -->
 {#if loadStatus === "error"}
     <div class="fixed inset-0 z-100 flex flex-col items-center justify-center bg-(--bg)">
-        <div class="w-10 h-10 mb-5 rounded-full flex items-center justify-center" style="background:var(--data-warm-light)">
-            <svg class="w-5 h-5" style="color:var(--data-warm)" viewBox="0 0 20 20" fill="currentColor">
+        <div class="w-10 h-10 mb-5 rounded-full flex items-center justify-center" style="background:var(--neg-bg)">
+            <svg class="w-5 h-5" style="color:var(--neg)" viewBox="0 0 20 20" fill="currentColor">
                 <path fill-rule="evenodd" d="M8.485 2.495c.673-1.167 2.357-1.167 3.03 0l6.28 10.875c.673 1.167-.17 2.625-1.516 2.625H3.72c-1.347 0-2.189-1.458-1.515-2.625L8.485 2.495zM10 5a.75.75 0 01.75.75v3.5a.75.75 0 01-1.5 0v-3.5A.75.75 0 0110 5zm0 9a1 1 0 100-2 1 1 0 000 2z" clip-rule="evenodd"/>
             </svg>
         </div>
@@ -125,27 +108,27 @@
         {/if}
         <button
             onclick={fetchData}
-            class="text-[13px] px-4 py-2 rounded-sm font-medium transition-opacity cursor-pointer border-none"
+            class="text-[13px] px-4 py-2 rounded-sm font-medium cursor-pointer border-none"
             style="background:var(--accent-surface); color:var(--accent)"
-            onmouseenter={(e) => (e.currentTarget as HTMLElement).style.opacity = '0.8'}
-            onmouseleave={(e) => (e.currentTarget as HTMLElement).style.opacity = '1'}
         >
             Retry
         </button>
     </div>
 
 {:else if loadStatus === "transitioning" || loadStatus === "ready"}
-<div class="app-shell flex h-screen w-screen overflow-hidden" style="background:var(--bg)">
-    <Sidebar />
+<!-- ─── Plate shell ───────────────────────────────────────────────────── -->
+<div class="plate plate-enter">
+    <Topbar />
 
-    <div class="flex flex-col flex-1 overflow-hidden min-w-0">
-        <Topbar />
+    <div class="plate-body">
+        <OperatePanel />
 
-        <div class="flex-1 overflow-hidden relative flex justify-center" style="background:var(--bg)">
+        <!-- Stage -->
+        <div class="plate-stage">
             <div
+                class="fig-canvas"
                 bind:clientWidth={containerWidth}
                 bind:clientHeight={containerHeight}
-                class="w-full relative overflow-hidden"
             >
                 <Lattice
                     positions={latticePositions}
@@ -154,7 +137,7 @@
                     entryAnimating={entryAnimating}
                 />
 
-                <!-- Hover tooltip -->
+                <!-- Hover tooltip (bottom-center of canvas) -->
                 {#if dashboardState.hoveredId !== null && dashboardState.snap.qubits[dashboardState.hoveredId]}
                     {@const q = dashboardState.snap.qubits[dashboardState.hoveredId]}
                     <div class="tooltip">
@@ -183,50 +166,25 @@
                         </div>
                     </div>
                 {/if}
-
-                <!-- Color scale legend -->
-                {#if dashboardState.filteredQubits.length > 0}
-                    <div class="legend">
-                        <div class="legend-label">{nodeLegend.label}</div>
-                        <div
-                            class="legend-bar"
-                            style="background:linear-gradient(to right,{nodeLegend.reversed ? NODE_COLOR_HI : NODE_COLOR_LO},{nodeLegend.reversed ? NODE_COLOR_LO : NODE_COLOR_HI})"
-                        ></div>
-                        <div class="legend-ends">
-                            <span>{nodeLegend.lo}</span>
-                            <span>{nodeLegend.hi}</span>
-                        </div>
-
-                        <div class="legend-divider"></div>
-
-                        <div class="legend-label">CX Gate Error</div>
-                        <div
-                            class="legend-bar"
-                            style="background:linear-gradient(to right,{EDGE_COLOR_HI},{EDGE_COLOR_LO})"
-                        ></div>
-                        <div class="legend-ends">
-                            <span>{edgeLegend.lo}</span>
-                            <span>{edgeLegend.hi}</span>
-                        </div>
-                    </div>
-                {/if}
-
-                <!-- Detail panel -->
-                {#if dashboardState.selectedId !== null && dashboardState.snap.qubits[dashboardState.selectedId]}
-                    {@const qubit = dashboardState.snap.qubits[dashboardState.selectedId]}
-                    <QubitDetail
-                        {qubit}
-                        edges={dashboardState.snap.edges}
-                        onClose={() => (dashboardState.selectedId = null)}
-                    />
-                {/if}
             </div>
         </div>
+
+        <ReadPanel />
     </div>
 </div>
 {/if}
 
 <style>
+    /* ─── Plate entry animation ──────────────────────────────────────── */
+    .plate-enter {
+        animation: plate-fade-in 320ms cubic-bezier(0.4, 0, 0.2, 1) both;
+    }
+    @keyframes plate-fade-in {
+        from { opacity: 0; }
+        to   { opacity: 1; }
+    }
+
+    /* ─── Hover tooltip ──────────────────────────────────────────────── */
     .tooltip {
         position: absolute;
         bottom: 18px;
@@ -277,49 +235,9 @@
         line-height: 1;
     }
 
-    .legend {
-        position: absolute;
-        bottom: 18px;
-        right: 18px;
-        pointer-events: none;
-        z-index: 30;
-        background: var(--surface);
-        border: 1px solid var(--border-mid);
-        border-radius: var(--radius-md);
-        box-shadow: var(--shadow-panel);
-        padding: 11px 13px;
-        min-width: 148px;
-    }
-
-    .legend-label {
-        font-size: 9px;
-        letter-spacing: 0.09em;
-        text-transform: uppercase;
-        color: var(--text-3);
-        margin-bottom: 6px;
-        font-weight: 500;
-    }
-    .legend-bar {
-        height: 5px;
-        border-radius: 3px;
-        margin-bottom: 5px;
-    }
-    .legend-ends {
-        display: flex;
-        justify-content: space-between;
-        font-size: 9px;
-        font-family: var(--font-mono);
-        color: var(--text-3);
-    }
-    .legend-divider {
-        height: 1px;
-        background: var(--border);
-        margin: 9px 0;
-    }
-
     /* ─── Loader → app handoff ─────────────────────────────────────── */
     .loader-bar-wrap {
-        width: 14rem; /* match original w-56 */
+        width: 14rem;
         transition: width 320ms cubic-bezier(0.65, 0, 0.35, 1);
     }
     .loader-track {
@@ -332,7 +250,6 @@
     .loader-overlay {
         transition: opacity 240ms ease-out 220ms;
     }
-
     .loader-overlay.transitioning {
         opacity: 0;
         pointer-events: none;
@@ -358,14 +275,6 @@
         opacity: 0;
     }
 
-    .app-shell {
-        animation: app-fade-in 320ms cubic-bezier(0.4, 0, 0.2, 1) both;
-    }
-    @keyframes app-fade-in {
-        from { opacity: 0; }
-        to   { opacity: 1; }
-    }
-
     @media (prefers-reduced-motion: reduce) {
         .loader-bar-wrap,
         .loader-track,
@@ -377,7 +286,7 @@
         .loader-overlay.transitioning .loader-fill {
             animation: none;
         }
-        .app-shell {
+        .plate-enter {
             animation: none;
         }
     }

@@ -100,6 +100,14 @@ export function avg(vals: Array<number | null | undefined>): number | null {
     return ok.reduce((s, v) => s + v, 0) / ok.length;
 }
 
+export function median(vals: Array<number | null | undefined>): number | null {
+    const ok = vals.filter((v): v is number => typeof v === 'number' && Number.isFinite(v));
+    if (!ok.length) return null;
+    ok.sort((a, b) => a - b);
+    const mid = Math.floor(ok.length / 2);
+    return ok.length % 2 === 0 ? (ok[mid - 1] + ok[mid]) / 2 : ok[mid];
+}
+
 export function buildBaseEdges(coupling?: [number, number][]): UiEdge[] {
     const edges = coupling ? buildEdgesFromCoupling(coupling) : BASE_EDGES;
     return edges.map((e) => ({ ...e, cx_error: null }));
@@ -224,6 +232,28 @@ export function edgeScore(e: UiEdge, R: MetricRanges): number {
 
 type ConnRules = { endpoint: number; chain: number; junction: number };
 
+export type Topology = 'compact' | 'linear' | 'branched';
+
+export const TOPOLOGIES: { value: Topology; label: string }[] = [
+    { value: 'compact', label: 'Compact' },
+    { value: 'linear', label: 'Linear' },
+    { value: 'branched', label: 'Branched' },
+];
+
+export const TOPO_HINT: Record<Topology, string> = {
+    compact: 'Dense, well-connected block — maximises 2-qubit gate options.',
+    linear: 'A single chain — ideal for 1-D / nearest-neighbour circuits.',
+    branched: 'Tree-like — junctions with reaching endpoints.',
+};
+
+// Map a target size + topology choice onto the connectivity-degree rules the
+// finder seeds from: endpoint = deg-1, chain = deg-2, junction = deg-3.
+export function topoToRules(n: number, topo: Topology): ConnRules {
+    if (topo === 'linear') return { endpoint: 0, chain: n, junction: 0 };
+    if (topo === 'branched') return { endpoint: Math.floor(n / 2), chain: 0, junction: Math.ceil(n / 2) };
+    return { endpoint: 0, chain: 0, junction: n }; // compact
+}
+
 export function findCluster(
     connRules: ConnRules,
     qubits: UiQubit[],
@@ -296,27 +326,37 @@ export function findCluster(
 
 export function metricNodeColor(t: number) {
     t = Math.max(0, Math.min(1, t));
-    // Diverging: amber (t=0, bad) → bright white (t=0.5) → muted steel blue (t=1, good).
-    // Good end shares the edge hue family so they read as one coherent "quality" layer.
+    // Viridis-leaning ramp: dark indigo/purple (t=0, bad) → teal (t=0.5) → yellow-green (t=1, good).
+    // Perceived brightness increases monotonically — readable on both light and dark backgrounds.
     let L: number, C: number, H: number;
-    if (t <= 0.5) {
-        const s = t * 2;
-        L = 58 + s * 37;      // 58 → 95
-        C = 0.19 - s * 0.18;  // 0.19 → 0.01
-        H = 35;
+    if (t < 0.25) {
+        const s = t / 0.25;
+        L = 32 + s * 12;       // 32 → 44
+        C = 0.10 + s * 0.06;   // 0.10 → 0.16
+        H = 290 - s * 30;      // 290 → 260 (indigo → violet)
+    } else if (t < 0.5) {
+        const s = (t - 0.25) / 0.25;
+        L = 44 + s * 14;       // 44 → 58
+        C = 0.16 - s * 0.02;   // 0.16 → 0.14
+        H = 260 - s * 60;      // 260 → 200 (violet → teal-blue)
+    } else if (t < 0.75) {
+        const s = (t - 0.5) / 0.25;
+        L = 58 + s * 14;       // 58 → 72
+        C = 0.14 + s * 0.02;   // 0.14 → 0.16
+        H = 200 - s * 40;      // 200 → 160 (teal-blue → teal-green)
     } else {
-        const s = (t - 0.5) * 2;
-        L = 95 - s * 40;      // 95 → 55
-        C = 0.01 + s * 0.07;  // 0.01 → 0.08
-        H = 220;
+        const s = (t - 0.75) / 0.25;
+        L = 72 + s * 14;       // 72 → 86
+        C = 0.16 - s * 0.04;   // 0.16 → 0.12
+        H = 160 - s * 30;      // 160 → 130 (teal-green → yellow-green)
     }
-    return `oklch(${L.toFixed(1)}% ${C.toFixed(3)} ${H})`;
+    return `oklch(${L.toFixed(1)}% ${C.toFixed(3)} ${H.toFixed(1)})`;
 }
 
 export function edgeColor(t: number) {
     t = Math.max(0, Math.min(1, t));
-    // Single cool ramp: light slate (t=0, high error) → deep slate (t=1, low error).
-    const L = 80 - t * 28;    // 80 → 52
-    const C = 0.03 + t * 0.07; // 0.03 → 0.10
-    return `oklch(${L.toFixed(1)}% ${C.toFixed(3)} 220)`;
+    // Indigo-family mono ramp: muted lavender (t=0, high error) → deep indigo (t=1, low error).
+    const L = 76 - t * 34;     // 76 → 42
+    const C = 0.04 + t * 0.09; // 0.04 → 0.13
+    return `oklch(${L.toFixed(1)}% ${C.toFixed(3)} 276)`;
 }

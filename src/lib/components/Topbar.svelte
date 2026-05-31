@@ -2,11 +2,7 @@
     import { dashboardState } from "$lib/state.svelte";
     import { onMount } from "svelte";
 
-    const METRICS = [
-        { k: "readout", l: "Readout" },
-        { k: "T1", l: "T₁" },
-        { k: "T2", l: "T₂" },
-    ] as const;
+    const repositoryUrl = "https://github.com/nebmit/qpu";
 
     let dark = $state(false);
 
@@ -29,163 +25,69 @@
         }
         applyTheme(dark);
     });
+
+    const METRICS = [
+        { k: "readout" as const, l: "Readout" },
+        { k: "T1" as const,     l: "T₁" },
+        { k: "T2" as const,     l: "T₂" },
+    ];
 </script>
 
-<div class="topbar">
-    <div class="flex gap-0.5">
-        {#each METRICS as m (m.k)}
-            <button
-                class="m-tab {dashboardState.metricMode === m.k ? 'active' : ''}"
-                onclick={() => (dashboardState.metricMode = m.k)}
-            >
-                {m.l}
-            </button>
-        {/each}
+<header class="topbar">
+    <!-- brand zone (aligns with OPERATE column) -->
+    <div class="tb-left">
+        <span class="brand-word">QPU&nbsp;Calibration&nbsp;<b>Visualizer</b></span>
+        <a
+            href={repositoryUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            aria-label="View source on GitHub"
+            class="gh"
+            title="View source on GitHub"
+        >
+            <svg viewBox="0 0 24 24" width="13" height="13" class="fill-current" aria-hidden="true">
+                <path d="M12 .5C5.648.5.5 5.734.5 12.21c0 5.18 3.292 9.57 7.865 11.11.575.11.784-.254.784-.564 0-.279-.01-1.017-.016-1.996-3.2.71-3.878-1.575-3.878-1.575-.524-1.356-1.281-1.716-1.281-1.716-1.048-.737.08-.722.08-.722 1.16.084 1.77 1.216 1.77 1.216 1.03 1.8 2.703 1.28 3.36.98.104-.762.402-1.28.73-1.574-2.553-.298-5.238-1.31-5.238-5.83 0-1.288.438-2.34 1.157-3.164-.117-.3-.5-1.506.11-3.14 0 0 .943-.31 3.088 1.208a10.4 10.4 0 0 1 2.81-.387 10.4 10.4 0 0 1 2.81.387c2.145-1.518 3.088-1.208 3.088-1.208.61 1.634.227 2.84.11 3.14.72.824 1.157 1.876 1.157 3.164 0 4.53-2.69 5.53-5.252 5.82.413.366.78 1.088.78 2.195 0 1.584-.014 2.862-.014 3.25 0 .313.207.68.79.564C20.21 21.78 23.5 17.39 23.5 12.21 23.5 5.734 18.352.5 12 .5Z"/>
+            </svg>
+        </a>
     </div>
 
-    <div class="flex-1"></div>
-
-    <!-- Device stats -->
-    <div class="stats-group">
-        <div class="stat">
-            <span class="stat-label">T₁</span>
-            <span class="stat-value font-mono">
-                {dashboardState.stats.T1}{#if dashboardState.stats.T1 !== "—"}<span class="stat-unit">μs</span>{/if}
-            </span>
+    <!-- figure zone (center stage) — view selector lives in the figure header -->
+    <div class="tb-center">
+        <div class="tb-figgrp">
+            <span class="fig-no">Fig.&nbsp;01</span>
+            <div class="seg">
+                {#each METRICS as m (m.k)}
+                    <button
+                        class="seg-btn {dashboardState.metricMode === m.k ? 'on' : ''}"
+                        onclick={() => (dashboardState.metricMode = m.k)}
+                    >
+                        {m.l}
+                    </button>
+                {/each}
+            </div>
         </div>
-        <div class="stat">
-            <span class="stat-label">T₂</span>
-            <span class="stat-value font-mono">
-                {dashboardState.stats.T2}{#if dashboardState.stats.T2 !== "—"}<span class="stat-unit">μs</span>{/if}
-            </span>
-        </div>
-        <div class="stat">
-            <span class="stat-label">Readout</span>
-            <span class="stat-value font-mono">
-                {dashboardState.stats.ro}{#if dashboardState.stats.ro !== "—"}%{/if}
-            </span>
-        </div>
-        <div class="stat">
-            <span class="stat-label">CX</span>
-            <span class="stat-value font-mono">{dashboardState.stats.cx}</span>
-        </div>
-
-        <div class="stat-divider"></div>
-        <span class="qe-badge font-mono">{dashboardState.stats.qubitsCount}Q · {dashboardState.stats.edgesCount}E</span>
     </div>
 
-    <!-- Dark mode toggle -->
-    <button class="theme-btn" onclick={toggleDark} aria-label="Toggle dark mode" title={dark ? "Switch to light mode" : "Switch to dark mode"}>
-        {#if dark}
-            <!-- Sun -->
-            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-                <circle cx="12" cy="12" r="4"/>
-                <path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41"/>
-            </svg>
-        {:else}
-            <!-- Moon -->
-            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-                <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>
-            </svg>
-        {/if}
-    </button>
-</div>
+    <!-- controls zone (aligns with READ column) -->
+    <div class="tb-right">
+        <!-- Theme toggle -->
+        <button class="ibtn" onclick={toggleDark} aria-label="Toggle dark mode" title={dark ? "Switch to light mode" : "Switch to dark mode"}>
+            {#if dark}
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                    <circle cx="12" cy="12" r="4"/>
+                    <path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41"/>
+                </svg>
+            {:else}
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>
+                </svg>
+            {/if}
+        </button>
+    </div>
+</header>
 
 <style>
-    .topbar {
-        height: 52px;
-        flex-shrink: 0;
-        background: var(--bg);
-        border-bottom: 1px solid var(--border);
-        display: flex;
-        align-items: center;
-        padding: 0 16px;
-        gap: 4px;
-    }
-
-    .m-tab {
-        padding: 5px 13px;
-        border-radius: var(--radius-sm);
-        font-size: 12.5px;
-        font-weight: 450;
-        cursor: pointer;
-        border: none;
-        background: transparent;
-        color: var(--text-3);
-        transition: color 0.12s, background 0.12s;
-        font-family: var(--font-sans);
-        letter-spacing: 0.01em;
-    }
-    .m-tab:hover  { color: var(--text-2); }
-    .m-tab.active {
-        color: var(--accent);
-        background: var(--accent-surface);
-    }
-
-    .stats-group {
-        display: flex;
-        align-items: center;
-        gap: 20px;
-        padding: 0 14px;
-        height: 32px;
-        border: 1px solid var(--border);
-        border-radius: var(--radius-sm);
-        background: var(--surface);
-    }
-
-    .stat {
-        display: flex;
-        flex-direction: column;
-        gap: 1px;
-        align-items: flex-end;
-    }
-    .stat-label {
-        font-size: 9.5px;
-        color: var(--text-3);
-        letter-spacing: 0.06em;
-        text-transform: uppercase;
-        line-height: 1;
-    }
-    .stat-value {
-        font-size: 12.5px;
-        color: var(--text-2);
-        line-height: 1;
-    }
-    .stat-unit {
-        font-size: 9px;
-        margin-left: 2px;
-        color: var(--text-3);
-    }
-
-    .stat-divider {
-        width: 1px;
-        height: 18px;
-        background: var(--border);
-    }
-
-    .qe-badge {
-        font-size: 11px;
-        color: var(--text-3);
-    }
-
-    .theme-btn {
-        margin-left: 8px;
-        width: 32px;
-        height: 32px;
-        border-radius: var(--radius-sm);
-        border: 1px solid var(--border);
-        background: var(--surface);
-        color: var(--text-3);
-        cursor: pointer;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        transition: color 0.12s, background 0.12s, border-color 0.12s;
-        flex-shrink: 0;
-    }
-    .theme-btn:hover {
-        color: var(--text-2);
-        background: var(--sidebar-bg);
-        border-color: var(--border-mid);
+    .tb-left {
+        justify-content: space-between;
     }
 </style>

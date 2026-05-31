@@ -1,12 +1,15 @@
 import { SvelteSet } from 'svelte/reactivity';
-import { QPU_DEVICES, computeRanges, TOTAL_QUBITS, avg, buildBaseEdges, buildUiSnapshot, emptySnapshot } from '$lib/utils/data';
+import { QPU_DEVICES, computeRanges, TOTAL_QUBITS, avg, median, buildBaseEdges, buildUiSnapshot, emptySnapshot, topoToRules } from '$lib/utils/data';
+import type { Topology } from '$lib/utils/data';
 import type { Dataset, UiEdge, UiSnapshot } from '$lib/types';
 
 export class DashboardState {
     device = $state(QPU_DEVICES[0]);
     timeIdx = $state(0);
     metricMode = $state<'readout' | 'T1' | 'T2'>('readout');
-    connRules = $state({ endpoint: 0, chain: 20, junction: 10 });
+    clusterSize = $state(12);
+    topology = $state<Topology>('compact');
+    connRules = $derived(topoToRules(this.clusterSize, this.topology));
     errorCutoffs = $state({ readoutPct: 12, cxPct: 4 });
     coherenceCutoffs = $state({ minT1: 100, minT2: 50 });
     cluster = $state<number[]>([]);
@@ -73,6 +76,22 @@ export class DashboardState {
         };
     });
 
+    medians = $derived.by(() => {
+        const q = this.snap.qubits;
+        const edges = this.snap.edges;
+        const T1med = median(q.map(x => x.T1));
+        const T2med = median(q.map(x => x.T2));
+        const roMed = median(q.map(x => x.readout_error));
+        const cxMed = median(edges.map(e => e.cx_error));
+        return {
+            T1: T1med == null ? '—' : T1med.toFixed(0),
+            T2: T2med == null ? '—' : T2med.toFixed(0),
+            ro: roMed == null ? '—' : (roMed * 100).toFixed(2),
+            cx: cxMed == null ? '—' : cxMed.toExponential(2),
+            _raw: { T1: T1med, T2: T2med, ro: roMed }
+        };
+    });
+
     clusterStats = $derived.by(() => {
         if (!this.cluster.length) return null;
         const cq = this.cluster.map(id => this.snap.qubits[id]).filter(Boolean);
@@ -80,10 +99,26 @@ export class DashboardState {
         const T1avg = avg(cq.map(q => q.T1));
         const T2avg = avg(cq.map(q => q.T2));
         const roAvg = avg(cq.map(q => q.readout_error));
+
+        const pct = (val: number | null, ref: number | null, lowerBetter = false) => {
+            if (val == null || ref == null || ref === 0) return null;
+            const delta = (val - ref) / ref;
+            const good = lowerBetter ? delta < -0.02 : delta > 0.02;
+            const bad  = lowerBetter ? delta > 0.02  : delta < -0.02;
+            return {
+                dir: good ? 'up' : bad ? 'down' : 'flat',
+                label: `${Math.abs(delta * 100).toFixed(0)}%`
+            } as { dir: 'up' | 'down' | 'flat'; label: string };
+        };
+
+        const med = this.medians._raw;
         return {
             T1: T1avg == null ? '—' : T1avg.toFixed(0),
             T2: T2avg == null ? '—' : T2avg.toFixed(0),
-            ro: roAvg == null ? '—' : (roAvg * 100).toFixed(2)
+            ro: roAvg == null ? '—' : (roAvg * 100).toFixed(2),
+            deltaT1: pct(T1avg, med.T1, false),
+            deltaT2: pct(T2avg, med.T2, false),
+            deltaRo: pct(roAvg, med.ro, true),
         };
     });
 

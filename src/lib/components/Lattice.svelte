@@ -32,8 +32,10 @@
 
     const BASE_PAD = { t: 60, l: 120, r: 120, b: 60 };
 
-    const DEAD_EDGE_STROKE = "oklch(82% 0.005 220)";
-    const DEAD_NODE_FILL = "oklch(87% 0.005 220)";
+    // Dead colours are read at render time from CSS custom properties
+    // so they automatically follow the light/dark theme.
+    const DEAD_EDGE_STROKE = "var(--dead-edge)";
+    const DEAD_NODE_FILL = "var(--dead-node)";
 
     const PAD = $derived.by(() => {
         const largeScreen = width >= 1200;
@@ -265,10 +267,10 @@
                                 {r}
                                 {fill}
                                 stroke={isHov
-                                    ? "rgba(0,0,0,0.3)"
+                                    ? "var(--node-stroke-hov)"
                                     : inCl
-                                      ? "rgba(0,0,0,0.18)"
-                                      : "rgba(0,0,0,0.09)"}
+                                      ? "var(--node-stroke-hov)"
+                                      : "var(--node-stroke)"}
                                 stroke-width={isHov ? 1 : inCl ? 1 : 0.75}
                                 filter={inCl ? "url(#f-glow)" : undefined}
                             />
