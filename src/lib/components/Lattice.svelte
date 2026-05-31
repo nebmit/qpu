@@ -21,11 +21,13 @@
         width,
         height,
         interactive = true,
+        entryAnimating = false,
     } = $props<{
         positions: LatticePos[];
         width: number;
         height: number;
         interactive?: boolean;
+        entryAnimating?: boolean;
     }>();
 
     const BASE_PAD = { t: 60, l: 120, r: 120, b: 60 };
@@ -109,10 +111,31 @@
     let filteredEdgeKeys = $derived(
         new Set(dashboardState.filteredEdges.map(edgeKey)),
     );
+
+    // Per-node entry delay: center-out cascade (closer to centroid = earlier)
+    const ENTRY_MAX_DELAY_MS = 280;
+    let entryDelays = $derived.by(() => {
+        const m = new Map<number, number>();
+        if (!positions.length) return m;
+        const pts: { id: number; x: number; y: number }[] = [];
+        for (const p of positions) {
+            const c = xy.get(p.id);
+            if (c) pts.push({ id: p.id, x: c.x, y: c.y });
+        }
+        if (!pts.length) return m;
+        const cx = pts.reduce((s, p) => s + p.x, 0) / pts.length;
+        const cy = pts.reduce((s, p) => s + p.y, 0) / pts.length;
+        const dists = pts.map((p) => Math.hypot(p.x - cx, p.y - cy));
+        const maxDist = Math.max(1, ...dists);
+        pts.forEach((p, i) => {
+            m.set(p.id, (dists[i] / maxDist) * ENTRY_MAX_DELAY_MS);
+        });
+        return m;
+    });
 </script>
 
 {#if positions.length}
-    <svg {width} {height} class="block">
+    <svg {width} {height} class="block" class:entry-animating={entryAnimating}>
         <defs>
             <filter id="f-glow" x="-100%" y="-100%" width="300%" height="300%">
                 <feGaussianBlur stdDeviation="5" result="b" />
@@ -130,6 +153,7 @@
                     {@const b = xy.get(e.target)}
                     {#if a && b}
                         <line
+                            class="entry-edge"
                             x1={a.x}
                             y1={a.y}
                             x2={b.x}
@@ -149,6 +173,8 @@
                 {@const isAllowed = dashboardState.allowedQubitIds.has(pos.id)}
                 {#if p && !isAllowed}
                     <circle
+                        class="entry-node entry-node-dead"
+                        style="--entry-delay: {entryDelays.get(pos.id) ?? 0}ms"
                         cx={p.x}
                         cy={p.y}
                         r={R}
@@ -165,16 +191,25 @@
                 {@const b = xy.get(e.target)}
                 {#if a && b}
                     {@const inCl = clSet.has(e.source) && clSet.has(e.target)}
-                    {@const hasErr = typeof e.cx_error === "number" && Number.isFinite(e.cx_error)}
+                    {@const hasErr =
+                        typeof e.cx_error === "number" &&
+                        Number.isFinite(e.cx_error)}
                     {@const t = edgeScore(e, dashboardState.ranges)}
                     <line
+                        class="entry-edge"
                         x1={a.x}
                         y1={a.y}
                         x2={b.x}
                         y2={b.y}
                         stroke={edgeColor(t)}
                         stroke-width={inCl ? 1.8 : 1}
-                        stroke-opacity={inCl ? 0.75 : clSet.size > 0 ? 0.06 : hasErr ? 0.45 : 0.2}
+                        stroke-opacity={inCl
+                            ? 0.75
+                            : clSet.size > 0
+                              ? 0.06
+                              : hasErr
+                                ? 0.45
+                                : 0.2}
                         stroke-linecap="round"
                     />
                 {/if}
@@ -188,7 +223,11 @@
                 {#if q && p && isAllowed}
                     {@const inCl = clSet.has(pos.id)}
                     {@const isHov = dashboardState.hoveredId === pos.id}
-                    {@const score = metricScore(q, dashboardState.metricMode, dashboardState.ranges)}
+                    {@const score = metricScore(
+                        q,
+                        dashboardState.metricMode,
+                        dashboardState.ranges,
+                    )}
                     {@const fill = metricNodeColor(score)}
                     {@const r = isHov ? R * 1.35 : R}
 
@@ -196,7 +235,9 @@
                     <g
                         transform={`translate(${p.x},${p.y})`}
                         opacity={clSet.size > 0 && !inCl ? 0.22 : 1}
-                        class={interactive ? "cursor-pointer" : "pointer-events-none"}
+                        class={interactive
+                            ? "cursor-pointer"
+                            : "pointer-events-none"}
                         onmouseenter={() => (dashboardState.hoveredId = pos.id)}
                         onmouseleave={() => (dashboardState.hoveredId = null)}
                         onclick={() =>
@@ -205,26 +246,88 @@
                                     ? null
                                     : pos.id)}
                     >
-                        {#if inCl}
-                            <!-- Halo ring — white in dark mode, dark in light mode -->
+                        <g
+                            class="entry-node"
+                            style="--entry-delay: {entryDelays.get(pos.id) ??
+                                0}ms"
+                        >
+                            {#if inCl}
+                                <!-- Halo ring — white in dark mode, dark in light mode -->
+                                <circle
+                                    r={r + 4}
+                                    fill="none"
+                                    style="stroke: var(--cl-halo)"
+                                    stroke-width={2}
+                                    filter="url(#f-glow)"
+                                />
+                            {/if}
                             <circle
-                                r={r + 4}
-                                fill="none"
-                                style="stroke: var(--cl-halo)"
-                                stroke-width={2}
-                                filter="url(#f-glow)"
+                                {r}
+                                {fill}
+                                stroke={isHov
+                                    ? "rgba(0,0,0,0.3)"
+                                    : inCl
+                                      ? "rgba(0,0,0,0.18)"
+                                      : "rgba(0,0,0,0.09)"}
+                                stroke-width={isHov ? 1 : inCl ? 1 : 0.75}
+                                filter={inCl ? "url(#f-glow)" : undefined}
                             />
-                        {/if}
-                        <circle
-                            {r}
-                            {fill}
-                            stroke={isHov ? "rgba(0,0,0,0.3)" : inCl ? "rgba(0,0,0,0.18)" : "rgba(0,0,0,0.09)"}
-                            stroke-width={isHov ? 1 : inCl ? 1 : 0.75}
-                            filter={inCl ? "url(#f-glow)" : undefined}
-                        />
+                        </g>
                     </g>
                 {/if}
             {/each}
         </g>
     </svg>
 {/if}
+
+<style>
+    .entry-animating .entry-node {
+        transform-box: fill-box;
+        transform-origin: center;
+        animation: node-pop 520ms cubic-bezier(0.34, 1.4, 0.64, 1) both;
+        animation-delay: var(--entry-delay, 0ms);
+    }
+    .entry-animating .entry-node-dead {
+        animation-name: dead-node-pop;
+    }
+    @keyframes node-pop {
+        from {
+            transform: scale(0.55);
+            opacity: 0;
+        }
+        to {
+            transform: scale(1);
+            opacity: 1;
+        }
+    }
+    @keyframes dead-node-pop {
+        from {
+            transform: scale(0.55);
+            opacity: 0;
+        }
+        to {
+            transform: scale(1);
+            opacity: 0.35;
+        }
+    }
+
+    .entry-animating .entry-edge {
+        animation: edge-appear 440ms ease-out both;
+        animation-delay: 220ms;
+    }
+    @keyframes edge-appear {
+        from {
+            opacity: 0;
+        }
+        to {
+            opacity: 1;
+        }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+        .entry-animating .entry-node,
+        .entry-animating .entry-edge {
+            animation: none;
+        }
+    }
+</style>

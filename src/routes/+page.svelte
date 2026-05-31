@@ -14,8 +14,9 @@
     let containerWidth = $state(900);
     let containerHeight = $state(540);
     let positionsByDevice = $state<Positions | null>(null);
-    let loadStatus = $state<"loading" | "ready" | "error">("loading");
+    let loadStatus = $state<"loading" | "transitioning" | "ready" | "error">("loading");
     let loadError = $state<string | null>(null);
+    let entryAnimating = $state(false);
     const smoothProgress = new Tween(0, { duration: 200, easing: cubicOut });
     let bytesReceived = $state(0);
     let bytesTotal = $state<number | null>(null);
@@ -47,7 +48,10 @@
             positionsByDevice = positions;
             dashboardState.applyDataset(dataset);
             await smoothProgress.set(1);
-            loadStatus = "ready";
+            loadStatus = "transitioning";
+            entryAnimating = true;
+            setTimeout(() => { loadStatus = "ready"; }, 450);
+            setTimeout(() => { entryAnimating = false; }, 1300);
         } catch (err) {
             console.error("Failed to load calibration data", err);
             loadError = err instanceof Error ? err.message : "Unknown error";
@@ -77,22 +81,25 @@
 </script>
 
 <!-- Loading screen -->
-{#if loadStatus === "loading"}
-    <div class="fixed inset-0 z-100 flex flex-col items-center justify-center gap-6 bg-(--bg)">
-        <div class="flex flex-col items-center gap-5">
-            <div class="flex flex-col items-center gap-1.5 mb-1">
+{#if loadStatus === "loading" || loadStatus === "transitioning"}
+    <div
+        class="loader-overlay fixed inset-0 z-100 flex flex-col items-center justify-center gap-6 bg-(--bg)"
+        class:transitioning={loadStatus === "transitioning"}
+    >
+        <div class="loader-content flex flex-col items-center gap-5">
+            <div class="loader-label flex flex-col items-center gap-1.5 mb-1">
                 <p class="text-[10.5px] tracking-[0.08em] uppercase font-medium" style="color:var(--text-3)">
                     Loading calibration data
                 </p>
             </div>
-            <div class="w-56 flex flex-col gap-2">
-                <div class="w-full h-0.75 rounded-full overflow-hidden" style="background:var(--border-mid)">
+            <div class="loader-bar-wrap flex flex-col gap-2">
+                <div class="loader-track h-0.75 rounded-full overflow-hidden" style="background:var(--border-mid)">
                     <div
-                        class="h-full rounded-full transition-none"
+                        class="loader-fill h-full rounded-full transition-none"
                         style="width:{(smoothProgress.current * 100).toFixed(1)}%; background:var(--accent)"
                     ></div>
                 </div>
-                <div class="flex justify-between">
+                <div class="loader-meta flex justify-between">
                     <span class="text-[11px] font-mono" style="color:var(--text-3)">
                         {(bytesReceived / 1e6).toFixed(1)}{bytesTotal ? ` / ${(bytesTotal / 1e6).toFixed(1)} MB` : " MB"}
                     </span>
@@ -103,9 +110,9 @@
             </div>
         </div>
     </div>
+{/if}
 
-<!-- Error screen -->
-{:else if loadStatus === "error"}
+{#if loadStatus === "error"}
     <div class="fixed inset-0 z-100 flex flex-col items-center justify-center bg-(--bg)">
         <div class="w-10 h-10 mb-5 rounded-full flex items-center justify-center" style="background:var(--data-warm-light)">
             <svg class="w-5 h-5" style="color:var(--data-warm)" viewBox="0 0 20 20" fill="currentColor">
@@ -127,8 +134,8 @@
         </button>
     </div>
 
-{:else}
-<div class="flex h-screen w-screen overflow-hidden" style="background:var(--bg)">
+{:else if loadStatus === "transitioning" || loadStatus === "ready"}
+<div class="app-shell flex h-screen w-screen overflow-hidden" style="background:var(--bg)">
     <Sidebar />
 
     <div class="flex flex-col flex-1 overflow-hidden min-w-0">
@@ -144,6 +151,7 @@
                     positions={latticePositions}
                     width={containerWidth}
                     height={containerHeight}
+                    entryAnimating={entryAnimating}
                 />
 
                 <!-- Hover tooltip -->
@@ -307,5 +315,70 @@
         height: 1px;
         background: var(--border);
         margin: 9px 0;
+    }
+
+    /* ─── Loader → app handoff ─────────────────────────────────────── */
+    .loader-bar-wrap {
+        width: 14rem; /* match original w-56 */
+        transition: width 320ms cubic-bezier(0.65, 0, 0.35, 1);
+    }
+    .loader-track {
+        transition: background-color 220ms ease-out, border-radius 220ms ease-out;
+    }
+    .loader-label,
+    .loader-meta {
+        transition: opacity 160ms ease-out;
+    }
+    .loader-overlay {
+        transition: opacity 240ms ease-out 220ms;
+    }
+
+    .loader-overlay.transitioning {
+        opacity: 0;
+        pointer-events: none;
+    }
+    .loader-overlay.transitioning .loader-bar-wrap {
+        width: 100vw;
+    }
+    .loader-overlay.transitioning .loader-track {
+        background-color: transparent;
+        border-radius: 0;
+        overflow: visible;
+    }
+    .loader-overlay.transitioning .loader-fill {
+        animation: bar-pulse 360ms cubic-bezier(0.4, 0, 0.2, 1) both;
+    }
+    @keyframes bar-pulse {
+        0%   { filter: drop-shadow(0 0 0 transparent); }
+        25%  { filter: drop-shadow(0 0 6px var(--accent)) drop-shadow(0 0 2px var(--accent)); }
+        100% { filter: drop-shadow(0 0 0 transparent); }
+    }
+    .loader-overlay.transitioning .loader-label,
+    .loader-overlay.transitioning .loader-meta {
+        opacity: 0;
+    }
+
+    .app-shell {
+        animation: app-fade-in 320ms cubic-bezier(0.4, 0, 0.2, 1) both;
+    }
+    @keyframes app-fade-in {
+        from { opacity: 0; }
+        to   { opacity: 1; }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+        .loader-bar-wrap,
+        .loader-track,
+        .loader-label,
+        .loader-meta,
+        .loader-overlay {
+            transition: none;
+        }
+        .loader-overlay.transitioning .loader-fill {
+            animation: none;
+        }
+        .app-shell {
+            animation: none;
+        }
     }
 </style>
