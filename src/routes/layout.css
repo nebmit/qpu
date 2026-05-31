@@ -1,6 +1,7 @@
 @import 'tailwindcss';
 @import '@fontsource-variable/geist/index.css';
 @import '@fontsource-variable/geist-mono/index.css';
+@import './motion.css';
 @plugin '@tailwindcss/typography';
 
 @theme {
@@ -148,7 +149,7 @@ html, body {
 .seg.full    { width: 100%; }
 .seg-btn     { flex: 0 0 auto; border: none; background: transparent; color: var(--text-3); font-family: var(--font-sans);
                font-size: 12.5px; font-weight: 450; padding: 6px 13px; border-radius: 6px; cursor: pointer;
-               transition: color 0.12s, background 0.12s; white-space: nowrap; }
+               transition: color var(--dur-fast), background var(--dur-fast); white-space: nowrap; }
 .seg.full .seg-btn { flex: 1; }
 .seg-btn:hover     { color: var(--text-2); }
 .seg-btn.on        { color: var(--accent); background: var(--surface); box-shadow: 0 1px 3px rgba(0,0,0,0.10); }
@@ -157,7 +158,7 @@ html, body {
 .dev-list { display: flex; flex-direction: column; gap: 2px; }
 .dev      { display: flex; align-items: center; gap: 9px; width: 100%; text-align: left; padding: 8px 11px;
             border-radius: var(--radius-sm); border: 1px solid transparent; background: transparent;
-            color: var(--text-3); font-size: 12.5px; cursor: pointer; font-family: var(--font-mono); transition: all 0.12s; }
+            color: var(--text-3); font-size: 12.5px; cursor: pointer; font-family: var(--font-mono); transition: all var(--dur-fast); }
 .dev:hover { color: var(--text-2); background: var(--read-bg); }
 .dev.on    { color: var(--accent); background: var(--accent-surface); border-color: var(--accent-border); }
 .dev .dot  { width: 6px; height: 6px; border-radius: 50%; background: currentColor; opacity: 0.35; flex-shrink: 0; }
@@ -183,7 +184,7 @@ html, body {
 /* Find button */
 .find      { width: 100%; padding: 11px 14px; background: var(--accent); border: none; border-radius: var(--radius-sm);
              color: var(--accent-fg); font-size: 13px; font-family: var(--font-sans); font-weight: 500; cursor: pointer;
-             transition: opacity 0.14s, box-shadow 0.14s, transform 0.1s; letter-spacing: 0.01em;
+             transition: opacity var(--dur-fast), box-shadow var(--dur-fast), transform var(--dur-fast); letter-spacing: 0.01em;
              display: flex; align-items: center; justify-content: center; gap: 8px; }
 .find:hover  { opacity: 0.92; box-shadow: 0 3px 14px color-mix(in oklch, var(--accent) 40%, transparent); }
 .find:active { transform: translateY(1px); }
@@ -206,7 +207,7 @@ html, body {
 .dd.full select { width: 100%; }
 .dd select { appearance: none; -webkit-appearance: none; padding: 8px 30px 8px 13px; border: 1px solid var(--border-mid);
              border-radius: 8px; background: var(--surface); color: var(--text); font-family: var(--font-mono);
-             font-size: 12.5px; cursor: pointer; outline: none; transition: border-color 0.12s; }
+             font-size: 12.5px; cursor: pointer; outline: none; transition: border-color var(--dur-fast); }
 .dd select:hover { border-color: var(--accent-border); }
 .dd select:focus { border-color: var(--accent); }
 .dd svg    { position: absolute; right: 12px; pointer-events: none; color: var(--text-3); }
@@ -214,13 +215,13 @@ html, body {
 /* Icon button */
 .ibtn { width: 32px; height: 32px; border-radius: var(--radius-sm); border: 1px solid var(--border); background: var(--surface);
         color: var(--text-3); cursor: pointer; display: flex; align-items: center; justify-content: center;
-        flex-shrink: 0; transition: all 0.12s; }
+        flex-shrink: 0; transition: all var(--dur-fast); }
 .ibtn:hover { color: var(--text-2); border-color: var(--border-mid); }
 
 /* GitHub button */
 .gh { width: 32px; height: 32px; border-radius: var(--radius-sm); border: 1px solid var(--border); background: var(--surface);
       color: var(--text-2); display: flex; align-items: center; justify-content: center; flex-shrink: 0;
-      cursor: pointer; transition: all 0.12s; text-decoration: none; }
+      cursor: pointer; transition: all var(--dur-fast); text-decoration: none; }
 .gh:hover { color: var(--text); background: var(--accent-surface); border-color: var(--accent-border); }
 
 /* ═══════════════════════════════════════════════════════════════════
@@ -271,13 +272,13 @@ html, body {
 .cr-members     { display: flex; flex-wrap: wrap; gap: 4px; }
 
 .qchip         { font-size: 10.5px; padding: 3px 7px; border-radius: 5px; border: 1px solid var(--accent-border);
-                 background: var(--surface); color: var(--text-2); cursor: pointer; transition: all 0.1s; font-family: var(--font-mono); }
+                 background: var(--surface); color: var(--text-2); cursor: pointer; transition: all var(--dur-fast); font-family: var(--font-mono); }
 .qchip:hover   { color: var(--text); border-color: var(--accent); }
 .qchip.on      { background: var(--accent); color: var(--accent-fg); border-color: var(--accent); }
 
 /* Inspector drill-down */
 .insp-back        { display: inline-flex; align-items: center; gap: 5px; background: none; border: none; color: var(--text-3);
-                    cursor: pointer; font-size: 11px; font-family: var(--font-sans); padding: 0; margin-bottom: 13px; transition: color 0.12s; }
+                    cursor: pointer; font-size: 11px; font-family: var(--font-sans); padding: 0; margin-bottom: 13px; transition: color var(--dur-fast); }
 .insp-back:hover  { color: var(--accent); }
 .insp-qhead       { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 12px; }
 .mem-badge        { font-size: 9px; letter-spacing: 0.05em; text-transform: uppercase; font-weight: 600;
@@ -303,7 +304,7 @@ input[type=range]::-webkit-slider-thumb {
   border: 2px solid var(--accent);
   box-shadow: 0 1px 4px rgba(0, 0, 0, 0.18);
   cursor: pointer;
-  transition: box-shadow 0.12s;
+  transition: box-shadow var(--dur-fast);
 }
 input[type=range]:hover::-webkit-slider-thumb {
   box-shadow: 0 0 0 4px var(--accent-surface);
@@ -328,16 +329,3 @@ input[type=number]:focus {
   box-shadow: 0 0 0 3px var(--accent-surface);
 }
 
-/* ═══════════════════════════════════════════════════════════════════
-   Animations
-   ═══════════════════════════════════════════════════════════════════ */
-@keyframes fadeIn {
-  from { opacity: 0; transform: translateY(6px); }
-  to   { opacity: 1; transform: none; }
-}
-.fade-in { animation: fadeIn 0.3s cubic-bezier(0.22, 1, 0.36, 1) forwards; }
-
-@keyframes pulse-ring {
-  0%       { opacity: 0.5; transform: scale(1); }
-  70%, 100% { opacity: 0; transform: scale(1.45); }
-}

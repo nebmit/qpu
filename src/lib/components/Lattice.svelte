@@ -1,4 +1,11 @@
 <script lang="ts">
+    import { Tween } from "svelte/motion";
+    import {
+        DUR,
+        ENTRY_CASCADE_MS,
+        ease,
+        prefersReducedMotion,
+    } from "$lib/motion";
     import { extent, scaleLinear } from "d3";
     import { dashboardState } from "$lib/state.svelte";
     import {
@@ -115,7 +122,6 @@
     );
 
     // Per-node entry delay: center-out cascade (closer to centroid = earlier)
-    const ENTRY_MAX_DELAY_MS = 280;
     let entryDelays = $derived.by(() => {
         const m = new Map<number, number>();
         if (!positions.length) return m;
@@ -129,11 +135,41 @@
         const cy = pts.reduce((s, p) => s + p.y, 0) / pts.length;
         const dists = pts.map((p) => Math.hypot(p.x - cx, p.y - cy));
         const maxDist = Math.max(1, ...dists);
-        pts.forEach((p, i) => {
-            m.set(p.id, (dists[i] / maxDist) * ENTRY_MAX_DELAY_MS);
-        });
-        return m;
+        return new Map(
+            pts.map((p, i) => [p.id, (dists[i] / maxDist) * ENTRY_CASCADE_MS]),
+        );
     });
+
+    let targetScores = $derived.by(() => {
+        const entries: [number, number][] = [];
+        for (const pos of positions) {
+            const q = dashboardState.snap.qubits[pos.id];
+            if (q)
+                entries.push([
+                    pos.id,
+                    metricScore(
+                        q,
+                        dashboardState.metricMode,
+                        dashboardState.ranges,
+                    ),
+                ]);
+        }
+        return new Map(entries);
+    });
+
+    const scoreTween = Tween.of(() => targetScores, {
+        easing: ease,
+        duration: () => (prefersReducedMotion.current ? 0 : DUR.base),
+        interpolate: (a, b) => (t) =>
+            new Map(
+                [...b].map(([id, to]) => {
+                    const from = a.get(id) ?? to;
+                    return [id, from + (to - from) * t];
+                }),
+            ),
+    });
+
+    let displayScores = $derived(scoreTween.current);
 </script>
 
 {#if positions.length}
@@ -198,14 +234,14 @@
                         Number.isFinite(e.cx_error)}
                     {@const t = edgeScore(e, dashboardState.ranges)}
                     <line
-                        class="entry-edge"
+                        class="entry-edge edge-live"
                         x1={a.x}
                         y1={a.y}
                         x2={b.x}
                         y2={b.y}
                         stroke={edgeColor(t)}
-                        stroke-width={inCl ? 1.8 : 1}
-                        stroke-opacity={inCl
+                        style:stroke-width={inCl ? 1.8 : 1}
+                        style:stroke-opacity={inCl
                             ? 0.75
                             : clSet.size > 0
                               ? 0.06
@@ -225,21 +261,23 @@
                 {#if q && p && isAllowed}
                     {@const inCl = clSet.has(pos.id)}
                     {@const isHov = dashboardState.hoveredId === pos.id}
-                    {@const score = metricScore(
-                        q,
-                        dashboardState.metricMode,
-                        dashboardState.ranges,
-                    )}
+                    {@const score =
+                        displayScores.get(pos.id) ??
+                        metricScore(
+                            q,
+                            dashboardState.metricMode,
+                            dashboardState.ranges,
+                        )}
                     {@const fill = metricNodeColor(score)}
                     {@const r = isHov ? R * 1.35 : R}
 
                     <!-- svelte-ignore a11y_no_static_element_interactions, a11y_click_events_have_key_events -->
                     <g
                         transform={`translate(${p.x},${p.y})`}
-                        opacity={clSet.size > 0 && !inCl ? 0.22 : 1}
-                        class={interactive
-                            ? "cursor-pointer"
-                            : "pointer-events-none"}
+                        style:opacity={clSet.size > 0 && !inCl ? 0.22 : 1}
+                        class="qnode {interactive
+                            ? 'cursor-pointer'
+                            : 'pointer-events-none'}"
                         onmouseenter={() => (dashboardState.hoveredId = pos.id)}
                         onmouseleave={() => (dashboardState.hoveredId = null)}
                         onclick={() =>
@@ -283,53 +321,26 @@
 {/if}
 
 <style>
+    .qnode {
+        transition: opacity var(--dur-ui) ease;
+    }
+    .edge-live {
+        transition:
+            stroke-opacity var(--dur-ui) ease,
+            stroke-width var(--dur-ui) ease;
+    }
+
     .entry-animating .entry-node {
         transform-box: fill-box;
         transform-origin: center;
-        animation: node-pop 520ms cubic-bezier(0.34, 1.4, 0.64, 1) both;
+        animation: node-pop var(--dur-entry) var(--ease-overshoot) both;
         animation-delay: var(--entry-delay, 0ms);
     }
     .entry-animating .entry-node-dead {
         animation-name: dead-node-pop;
     }
-    @keyframes node-pop {
-        from {
-            transform: scale(0.55);
-            opacity: 0;
-        }
-        to {
-            transform: scale(1);
-            opacity: 1;
-        }
-    }
-    @keyframes dead-node-pop {
-        from {
-            transform: scale(0.55);
-            opacity: 0;
-        }
-        to {
-            transform: scale(1);
-            opacity: 0.35;
-        }
-    }
-
     .entry-animating .entry-edge {
-        animation: edge-appear 440ms ease-out both;
-        animation-delay: 220ms;
-    }
-    @keyframes edge-appear {
-        from {
-            opacity: 0;
-        }
-        to {
-            opacity: 1;
-        }
-    }
-
-    @media (prefers-reduced-motion: reduce) {
-        .entry-animating .entry-node,
-        .entry-animating .entry-edge {
-            animation: none;
-        }
+        animation: edge-appear var(--dur-entry) var(--ease-standard) both;
+        animation-delay: var(--dur-ui);
     }
 </style>
