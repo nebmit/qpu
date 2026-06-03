@@ -1,15 +1,15 @@
 <script lang="ts">
     import { onMount } from "svelte";
     import { Tween } from "svelte/motion";
-    import { DUR, ease } from "$lib/motion";
+    import { DUR, ease } from "$lib/viz/motion";
     import Topbar from "$lib/components/Topbar.svelte";
     import OperatePanel from "$lib/components/OperatePanel.svelte";
     import ReadPanel from "$lib/components/ReadPanel.svelte";
     import Lattice from "$lib/components/Lattice.svelte";
-    import { dashboardState } from "$lib/state.svelte";
-    import { BASE_POS } from "$lib/utils/data";
+    import { dashboardState } from "$lib/state/dashboard.svelte";
+    import { BASE_POS } from "$lib/domain/lattice";
     import type { Positions } from "$lib/types";
-    import { loadData } from "$lib/utils/data";
+    import { loadData } from "$lib/data/calibration";
 
     let containerWidth = $state(900);
     let containerHeight = $state(540);

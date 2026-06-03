@@ -1,6 +1,7 @@
 <script lang="ts">
-    import { dashboardState } from "$lib/state.svelte";
-    import { prefersReducedMotion } from "$lib/motion";
+    import { dashboardState } from "$lib/state/dashboard.svelte";
+    import { prefersReducedMotion } from "$lib/viz/motion";
+    import { METRIC_OPTIONS } from "$lib/domain/metrics";
     import { onMount, flushSync } from "svelte";
 
     const repositoryUrl = "https://github.com/nebmit/qpu";
@@ -45,12 +46,6 @@
         }
         applyTheme(dark);
     });
-
-    const METRICS = [
-        { k: "readout" as const, l: "Readout" },
-        { k: "T1" as const, l: "T₁" },
-        { k: "T2" as const, l: "T₂" },
-    ];
 </script>
 
 <header class="topbar">
@@ -86,14 +81,14 @@
         <div class="tb-figgrp">
             <span class="fig-no">Fig.&nbsp;01</span>
             <div class="seg">
-                {#each METRICS as m (m.k)}
+                {#each METRIC_OPTIONS as m (m.value)}
                     <button
-                        class="seg-btn {dashboardState.metricMode === m.k
+                        class="seg-btn {dashboardState.metricMode === m.value
                             ? 'on'
                             : ''}"
-                        onclick={() => (dashboardState.metricMode = m.k)}
+                        onclick={() => (dashboardState.metricMode = m.value)}
                     >
-                        {m.l}
+                        {m.label}
                     </button>
                 {/each}
             </div>
@@ -148,9 +143,30 @@
 </header>
 
 <style>
-    .tb-left {
-        justify-content: space-between;
-    }
+    /* ── Top bar zones (aligned with the plate's three columns) ─────── */
+    .topbar    { display: flex; align-items: stretch; height: 60px; background: var(--surface); border-bottom: 1px solid var(--border); flex-shrink: 0; }
+    .tb-left   { width: 272px; display: flex; align-items: center; gap: 12px; padding: 0 20px; border-right: 1px solid var(--border); flex-shrink: 0; justify-content: space-between; }
+    .tb-center { flex: 1; min-width: 0; display: flex; align-items: center; justify-content: flex-start; padding: 0 26px; gap: 14px; }
+    .tb-right  { width: 280px; display: flex; align-items: center; justify-content: flex-end; gap: 8px; padding: 0 18px; flex-shrink: 0; }
+
+    .tb-figgrp { display: flex; align-items: center; gap: 14px; }
+    .fig-no    { font-family: var(--font-mono); font-size: 10.5px; letter-spacing: 0.04em; color: var(--text-3); flex-shrink: 0; }
+
+    /* ── Brand ─────────────────────────────────────────────────────── */
+    .brand-word   { font-size: 15px; font-weight: 300; letter-spacing: -0.01em; color: var(--text); white-space: nowrap; }
+    .brand-word b { font-weight: 600; }
+
+    /* ── Icon + GitHub buttons ─────────────────────────────────────── */
+    .ibtn { width: 32px; height: 32px; border-radius: var(--radius-sm); border: 1px solid var(--border); background: var(--surface);
+            color: var(--text-3); cursor: pointer; display: flex; align-items: center; justify-content: center;
+            flex-shrink: 0; transition: all var(--dur-fast); }
+    .ibtn:hover { color: var(--text-2); border-color: var(--border-mid); }
+
+    .gh { width: 32px; height: 32px; border-radius: var(--radius-sm); border: 1px solid var(--border); background: var(--surface);
+          color: var(--text-2); display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+          cursor: pointer; transition: all var(--dur-fast); text-decoration: none; }
+    .gh:hover { color: var(--text); background: var(--accent-surface); border-color: var(--accent-border); }
+
     .theme-ico {
         display: inline-flex;
         align-items: center;

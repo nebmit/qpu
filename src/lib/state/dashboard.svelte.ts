@@ -1,25 +1,43 @@
 import { SvelteSet } from 'svelte/reactivity';
-import { QPU_DEVICES, computeRanges, TOTAL_QUBITS, avg, median, buildBaseEdges, buildUiSnapshot, emptySnapshot, topoToRules } from '$lib/utils/data';
-import type { Topology } from '$lib/utils/data';
-import type { Dataset, UiEdge, UiSnapshot } from '$lib/types';
+import { TOTAL_QUBITS, buildBaseEdges } from '$lib/domain/lattice';
+import { computeRanges } from '$lib/domain/metrics';
+import { avg, median } from '$lib/domain/statistics';
+import { buildUiSnapshot, emptySnapshot } from '$lib/domain/snapshot';
+import { topoToRules, type Topology } from '$lib/domain/cluster';
+import { QPU_DEVICES } from '$lib/data/calibration';
+import type { Dataset, UiEdge, UiSnapshot, MetricMode, ClusterDelta } from '$lib/types';
 
+/**
+ * Single reactive store backing the dashboard. Holds user-controlled inputs and
+ * loaded data, and exposes derived snapshots, filtering, and numeric view-models.
+ *
+ * View-models (`stats`, `medians`, `clusterStats`) intentionally expose raw
+ * numbers; string formatting lives in `$lib/viz/format` and is applied by the
+ * components that render them.
+ */
 export class DashboardState {
+    // ── User-controlled inputs ──────────────────────────────────────────
     device = $state(QPU_DEVICES[0]);
     timeIdx = $state(0);
-    metricMode = $state<'readout' | 'T1' | 'T2'>('readout');
+    metricMode = $state<MetricMode>('readout');
     clusterSize = $state(12);
     topology = $state<Topology>('compact');
-    connRules = $derived(topoToRules(this.clusterSize, this.topology));
     errorCutoffs = $state({ readoutPct: 12, cxPct: 4 });
     coherenceCutoffs = $state({ minT1: 100, minT2: 50 });
+
+    // ── Selection + cluster result ──────────────────────────────────────
     cluster = $state<number[]>([]);
+    clusterError = $state<string | null>(null);
     hoveredId = $state<number | null>(null);
     selectedId = $state<number | null>(null);
-    sidebarOpen = $state(true);
 
+    // ── Loaded data, keyed by device ────────────────────────────────────
     totalQubits = $state(TOTAL_QUBITS);
     baseEdgesByDevice = $state<Record<string, UiEdge[]>>({});
     snapshotsByDevice = $state<Record<string, UiSnapshot[]>>({});
+
+    // ── Derived: active snapshot + filtering ────────────────────────────
+    connRules = $derived(topoToRules(this.clusterSize, this.topology));
 
     snap = $derived.by(() => {
         const list = this.snapshotsByDevice[this.device] || [];
@@ -59,18 +77,15 @@ export class DashboardState {
     totalConnections = $derived((this.connRules.endpoint || 0) + (this.connRules.chain || 0) + (this.connRules.junction || 0));
     timeCount = $derived((this.snapshotsByDevice[this.device] || []).length);
 
+    // ── Derived view-models (raw numbers; formatted at the view layer) ──
     stats = $derived.by(() => {
         const q = this.snap.qubits;
         const edges = this.snap.edges;
-        const T1avg = avg(q.map(x => x.T1));
-        const T2avg = avg(q.map(x => x.T2));
-        const roAvg = avg(q.map(x => x.readout_error));
-        const cxAvg = avg(edges.map(e => e.cx_error));
         return {
-            T1: T1avg == null ? '—' : T1avg.toFixed(0),
-            T2: T2avg == null ? '—' : T2avg.toFixed(0),
-            ro: roAvg == null ? '—' : (roAvg * 100).toFixed(2),
-            cx: cxAvg == null ? '—' : cxAvg.toExponential(2),
+            T1: avg(q.map((x) => x.T1)),
+            T2: avg(q.map((x) => x.T2)),
+            ro: avg(q.map((x) => x.readout_error)),
+            cx: avg(edges.map((e) => e.cx_error)),
             qubitsCount: q.length,
             edgesCount: edges.length
         };
@@ -79,51 +94,52 @@ export class DashboardState {
     medians = $derived.by(() => {
         const q = this.snap.qubits;
         const edges = this.snap.edges;
-        const T1med = median(q.map(x => x.T1));
-        const T2med = median(q.map(x => x.T2));
-        const roMed = median(q.map(x => x.readout_error));
-        const cxMed = median(edges.map(e => e.cx_error));
         return {
-            T1: T1med == null ? '—' : T1med.toFixed(0),
-            T2: T2med == null ? '—' : T2med.toFixed(0),
-            ro: roMed == null ? '—' : (roMed * 100).toFixed(2),
-            cx: cxMed == null ? '—' : cxMed.toExponential(2),
-            _raw: { T1: T1med, T2: T2med, ro: roMed }
+            T1: median(q.map((x) => x.T1)),
+            T2: median(q.map((x) => x.T2)),
+            ro: median(q.map((x) => x.readout_error)),
+            cx: median(edges.map((e) => e.cx_error))
         };
     });
 
     clusterStats = $derived.by(() => {
         if (!this.cluster.length) return null;
-        const cq = this.cluster.map(id => this.snap.qubits[id]).filter(Boolean);
+        const cq = this.cluster.map((id) => this.snap.qubits[id]).filter(Boolean);
         if (!cq.length) return null;
-        const T1avg = avg(cq.map(q => q.T1));
-        const T2avg = avg(cq.map(q => q.T2));
-        const roAvg = avg(cq.map(q => q.readout_error));
+        const T1 = avg(cq.map((q) => q.T1));
+        const T2 = avg(cq.map((q) => q.T2));
+        const ro = avg(cq.map((q) => q.readout_error));
 
-        const pct = (val: number | null, ref: number | null, lowerBetter = false) => {
+        // Compare a cluster metric to the device median; a ±2% dead-zone is "flat".
+        // `dir` is "up" when the cluster is better than median (accounting for
+        // metrics where lower is better, e.g. readout error).
+        const delta = (
+            val: number | null,
+            ref: number | null,
+            lowerBetter = false
+        ): ClusterDelta | null => {
             if (val == null || ref == null || ref === 0) return null;
-            const delta = (val - ref) / ref;
-            const good = lowerBetter ? delta < -0.02 : delta > 0.02;
-            const bad  = lowerBetter ? delta > 0.02  : delta < -0.02;
-            return {
-                dir: good ? 'up' : bad ? 'down' : 'flat',
-                label: `${Math.abs(delta * 100).toFixed(0)}%`
-            } as { dir: 'up' | 'down' | 'flat'; label: string };
+            const magnitude = (val - ref) / ref;
+            const good = lowerBetter ? magnitude < -0.02 : magnitude > 0.02;
+            const bad = lowerBetter ? magnitude > 0.02 : magnitude < -0.02;
+            return { dir: good ? 'up' : bad ? 'down' : 'flat', magnitude };
         };
 
-        const med = this.medians._raw;
+        const med = this.medians;
         return {
-            T1: T1avg == null ? '—' : T1avg.toFixed(0),
-            T2: T2avg == null ? '—' : T2avg.toFixed(0),
-            ro: roAvg == null ? '—' : (roAvg * 100).toFixed(2),
-            deltaT1: pct(T1avg, med.T1, false),
-            deltaT2: pct(T2avg, med.T2, false),
-            deltaRo: pct(roAvg, med.ro, true),
+            T1,
+            T2,
+            ro,
+            deltaT1: delta(T1, med.T1, false),
+            deltaT2: delta(T2, med.T2, false),
+            deltaRo: delta(ro, med.ro, true)
         };
     });
 
+    // ── Actions ─────────────────────────────────────────────────────────
     clearCluster() {
         this.cluster = [];
+        this.clusterError = null;
     }
 
     ensureTimeIdx(dev = this.device) {

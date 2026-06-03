@@ -5,15 +5,11 @@
         ENTRY_CASCADE_MS,
         ease,
         prefersReducedMotion,
-    } from "$lib/motion";
+    } from "$lib/viz/motion";
     import { extent, scaleLinear } from "d3";
-    import { dashboardState } from "$lib/state.svelte";
-    import {
-        metricScore,
-        metricNodeColor,
-        edgeColor,
-        edgeScore,
-    } from "$lib/utils/data";
+    import { dashboardState } from "$lib/state/dashboard.svelte";
+    import { metricScore, edgeScore } from "$lib/domain/metrics";
+    import { metricNodeColor, edgeColor } from "$lib/viz/color";
 
     type LatticePos = {
         id: number;
