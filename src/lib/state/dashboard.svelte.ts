@@ -3,9 +3,18 @@ import { TOTAL_QUBITS, buildBaseEdges } from '$lib/domain/lattice';
 import { computeRanges } from '$lib/domain/metrics';
 import { avg, median } from '$lib/domain/statistics';
 import { buildUiSnapshot, emptySnapshot } from '$lib/domain/snapshot';
-import { topoToRules, type Topology } from '$lib/domain/cluster';
+import {
+    findCluster,
+    largestComponent,
+    predictRelaxations,
+    qualifyQubits,
+    topoToRules,
+    type ClusterFilters,
+    type RelaxSuggestions,
+    type Topology
+} from '$lib/domain/cluster';
 import { QPU_DEVICES } from '$lib/data/calibration';
-import type { Dataset, UiEdge, UiSnapshot, MetricMode, ClusterDelta } from '$lib/types';
+import type { Dataset, Positions, UiEdge, UiSnapshot, MetricMode, ClusterDelta } from '$lib/types';
 
 /**
  * Single reactive store backing the dashboard. Holds user-controlled inputs and
@@ -27,7 +36,11 @@ export class DashboardState {
 
     // ── Selection + cluster result ──────────────────────────────────────
     cluster = $state<number[]>([]);
+    clusterRequested = $state(0);
     clusterError = $state<string | null>(null);
+    findFailed = $state(false);
+    nearestCluster = $state<number[]>([]);
+    relaxSuggestions = $state<RelaxSuggestions | null>(null);
     hoveredId = $state<number | null>(null);
     selectedId = $state<number | null>(null);
 
@@ -35,6 +48,7 @@ export class DashboardState {
     totalQubits = $state(TOTAL_QUBITS);
     baseEdgesByDevice = $state<Record<string, UiEdge[]>>({});
     snapshotsByDevice = $state<Record<string, UiSnapshot[]>>({});
+    positionsByDevice = $state<Positions | null>(null);
 
     // ── Derived: active snapshot + filtering ────────────────────────────
     connRules = $derived(topoToRules(this.clusterSize, this.topology));
@@ -140,6 +154,88 @@ export class DashboardState {
     clearCluster() {
         this.cluster = [];
         this.clusterError = null;
+        this.clusterRequested = 0;
+        this.findFailed = false;
+        this.nearestCluster = [];
+        this.relaxSuggestions = null;
+        this.selectedId = null;
+    }
+
+    clusterFilters(): ClusterFilters {
+        return {
+            readoutPct: this.errorCutoffs.readoutPct,
+            cxPct: this.errorCutoffs.cxPct,
+            minT1: this.coherenceCutoffs.minT1,
+            minT2: this.coherenceCutoffs.minT2
+        };
+    }
+
+    applyClusterFilters(filters: ClusterFilters) {
+        this.errorCutoffs.readoutPct = filters.readoutPct;
+        this.errorCutoffs.cxPct = filters.cxPct;
+        this.coherenceCutoffs.minT1 = filters.minT1;
+        this.coherenceCutoffs.minT2 = filters.minT2;
+    }
+
+    setPositions(positions: Positions) {
+        this.positionsByDevice = positions;
+    }
+
+    runFindCluster() {
+        const allowed = new SvelteSet(this.allowedQubitIds);
+        const result = findCluster(
+            this.connRules,
+            this.snap.qubits,
+            this.filteredEdges,
+            allowed
+        );
+        this.clusterRequested = result.requested;
+        this.clusterError = null;
+        this.selectedId = null;
+
+        const clSet = new SvelteSet(result.cluster);
+        const internalLinks = this.filteredEdges.filter(
+            (e) => clSet.has(e.source) && clSet.has(e.target)
+        ).length;
+
+        if (result.cluster.length < 2 || internalLinks === 0) {
+            this.cluster = [];
+            this.findFailed = true;
+            const filters = this.clusterFilters();
+            const qualified = qualifyQubits(filters, this.snap.qubits);
+            this.nearestCluster = largestComponent(
+                qualified,
+                this.snap.edges,
+                filters.cxPct / 100
+            );
+            this.relaxSuggestions = predictRelaxations(
+                filters,
+                this.snap.qubits,
+                this.snap.edges
+            );
+            return;
+        }
+
+        this.cluster = result.cluster;
+        this.findFailed = false;
+        this.nearestCluster = [];
+        this.relaxSuggestions = null;
+    }
+
+    shrinkToNearestAndRetry() {
+        const allowed = new SvelteSet(this.allowedQubitIds);
+        const target = this.nearestCluster.length >= 2
+            ? this.nearestCluster.length
+            : Math.min(allowed.size, 8);
+        this.clusterSize = Math.max(2, target);
+        this.runFindCluster();
+    }
+
+    applyRelaxation(idx: number) {
+        const cand = this.relaxSuggestions?.candidates[idx];
+        if (!cand) return;
+        this.applyClusterFilters(cand.filters);
+        this.runFindCluster();
     }
 
     ensureTimeIdx(dev = this.device) {

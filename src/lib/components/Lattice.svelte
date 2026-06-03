@@ -1,4 +1,5 @@
 <script lang="ts">
+    import { onDestroy } from "svelte";
     import { Tween } from "svelte/motion";
     import {
         DUR,
@@ -10,6 +11,7 @@
     import { dashboardState } from "$lib/state/dashboard.svelte";
     import { metricScore, edgeScore } from "$lib/domain/metrics";
     import { metricNodeColor, edgeColor } from "$lib/viz/color";
+    import { SvelteMap, SvelteSet } from "svelte/reactivity";
 
     type LatticePos = {
         id: number;
@@ -33,20 +35,15 @@
         entryAnimating?: boolean;
     }>();
 
-    const BASE_PAD = { t: 60, l: 120, r: 120, b: 60 };
-
-    // Dead colours are read at render time from CSS custom properties
-    // so they automatically follow the light/dark theme.
     const DEAD_EDGE_STROKE = "var(--dead-edge)";
     const DEAD_NODE_FILL = "var(--dead-node)";
 
     const PAD = $derived.by(() => {
-        const largeScreen = width >= 1200;
         return {
-            t: BASE_PAD.t,
-            b: BASE_PAD.b,
-            l: largeScreen ? BASE_PAD.l * 3 : BASE_PAD.l,
-            r: largeScreen ? BASE_PAD.r * 3 : BASE_PAD.r,
+            t: 60,
+            b: 60,
+            l: Math.min(360, width * 0.1),
+            r: Math.min(360, width * 0.1),
         };
     });
 
@@ -109,13 +106,154 @@
         ),
     );
 
+    const OUT_NODE = 0.38;
+    const OUT_NODE_EARLY = 0.68;
+    const OUT_EDGE = 0.11;
+    const OUT_EDGE_EARLY = 0.38;
+    const IN_EDGE = 0.85;
+
+    let revealPhase = $state<"idle" | "early" | "settle">("idle");
+    let revealActive = $state<Set<number>>(new Set());
+    let pingRings = $state<{ id: number; key: number }[]>([]);
+    let revealTimers: NodeJS.Timeout[] = [];
+    let pingKey = 0;
+
     const edgeKey = (e: { source: number; target: number }) =>
         `${Math.min(e.source, e.target)}-${Math.max(e.source, e.target)}`;
 
-    let clSet = $derived(new Set(dashboardState.cluster));
+    let clSet = $derived(
+        new Set(
+            dashboardState.findFailed
+                ? dashboardState.nearestCluster
+                : dashboardState.cluster,
+        ),
+    );
     let filteredEdgeKeys = $derived(
         new Set(dashboardState.filteredEdges.map(edgeKey)),
     );
+
+    let dimNodeOpacity = $derived.by(() => {
+        if (!clSet.size) return 1;
+        return revealPhase === "early" ? OUT_NODE_EARLY : OUT_NODE;
+    });
+    let dimEdgeOpacity = $derived.by(() => {
+        if (!clSet.size) return null;
+        return revealPhase === "early" ? OUT_EDGE_EARLY : OUT_EDGE;
+    });
+
+    function clearRevealTimers() {
+        revealTimers.forEach((t) => clearTimeout(t));
+        revealTimers = [];
+    }
+
+    function resetReveal() {
+        clearRevealTimers();
+        revealActive = new Set();
+        pingRings = [];
+        revealPhase = "idle";
+    }
+
+    function assembleOrder(cluster: number[]) {
+        if (!cluster.length) return [] as number[];
+        const set = new Set(cluster);
+        const adj = new SvelteMap<number, number[]>();
+        for (const id of cluster) adj.set(id, []);
+        for (const e of dashboardState.filteredEdges) {
+            if (!set.has(e.source) || !set.has(e.target)) continue;
+            adj.get(e.source)?.push(e.target);
+            adj.get(e.target)?.push(e.source);
+        }
+        let seed = cluster[0];
+        let best = -1;
+        for (const id of cluster) {
+            const d = adj.get(id)?.length ?? 0;
+            if (d > best) {
+                best = d;
+                seed = id;
+            }
+        }
+        const depth = new SvelteMap<number, number>([[seed, 0]]);
+        const order = [seed];
+        const queue = [seed];
+        while (queue.length) {
+            const cur = queue.shift()!;
+            const nbrs = (adj.get(cur) || []).slice().sort((a, b) => {
+                const ca = xy.get(a);
+                const cb = xy.get(b);
+                const cc = xy.get(cur);
+                if (!ca || !cb || !cc) return 0;
+                return (
+                    Math.hypot(ca.x - cc.x, ca.y - cc.y) -
+                    Math.hypot(cb.x - cc.x, cb.y - cc.y)
+                );
+            });
+            for (const nb of nbrs) {
+                if (!depth.has(nb)) {
+                    depth.set(nb, (depth.get(cur) ?? 0) + 1);
+                    order.push(nb);
+                    queue.push(nb);
+                }
+            }
+        }
+        for (const id of cluster) {
+            if (!depth.has(id)) order.push(id);
+        }
+        return order;
+    }
+
+    function addPing(id: number) {
+        const key = pingKey++;
+        pingRings = [...pingRings, { id, key }];
+        const t = setTimeout(() => {
+            pingRings = pingRings.filter((p) => p.key !== key);
+        }, 720);
+        revealTimers.push(t);
+    }
+
+    function startReveal() {
+        clearRevealTimers();
+        const cluster = [...clSet];
+        if (!cluster.length) {
+            resetReveal();
+            return;
+        }
+        if (prefersReducedMotion.current) {
+            revealActive = new Set(cluster);
+            revealPhase = "settle";
+            pingRings = [];
+            return;
+        }
+
+        revealActive = new Set();
+        pingRings = [];
+        revealPhase = "early";
+        const order = assembleOrder(cluster);
+        const step = Math.round(
+            Math.max(55, Math.min(115, 820 / Math.max(1, order.length))),
+        );
+        order.forEach((id, i) => {
+            const t = setTimeout(() => {
+                revealActive = new SvelteSet(revealActive).add(id);
+                addPing(id);
+            }, i * step);
+            revealTimers.push(t);
+        });
+        const settle = setTimeout(
+            () => {
+                revealPhase = "settle";
+            },
+            order.length * step + 160,
+        );
+        revealTimers.push(settle);
+    }
+
+    $effect(() => {
+        startReveal();
+    });
+
+    onDestroy(() => {
+        clearRevealTimers();
+    });
 
     // Per-node entry delay: center-out cascade (closer to centroid = earlier)
     let entryDelays = $derived.by(() => {
@@ -229,6 +367,10 @@
                         typeof e.cx_error === "number" &&
                         Number.isFinite(e.cx_error)}
                     {@const t = edgeScore(e, dashboardState.ranges)}
+                    {@const baseOpacity = hasErr ? 0.45 : 0.2}
+                    {@const isActive =
+                        revealActive.has(e.source) &&
+                        revealActive.has(e.target)}
                     <line
                         class="entry-edge edge-live"
                         x1={a.x}
@@ -236,18 +378,36 @@
                         x2={b.x}
                         y2={b.y}
                         stroke={edgeColor(t)}
-                        style:stroke-width={inCl ? 1.8 : 1}
+                        style:stroke-width={inCl ? (isActive ? 1.8 : 1) : 1}
                         style:stroke-opacity={inCl
-                            ? 0.75
+                            ? isActive
+                                ? IN_EDGE
+                                : baseOpacity
                             : clSet.size > 0
-                              ? 0.06
-                              : hasErr
-                                ? 0.45
-                                : 0.2}
+                              ? (dimEdgeOpacity ?? baseOpacity)
+                              : baseOpacity}
                         stroke-linecap="round"
                     />
                 {/if}
             {/each}
+
+            <!-- Cluster halo discs (behind live nodes) -->
+            <g class="halo-back-layer">
+                {#each Array.from(clSet) as id (id)}
+                    {@const c = xy.get(id)}
+                    {#if c}
+                        <circle
+                            class="cl-halo-disc"
+                            cx={c.x}
+                            cy={c.y}
+                            r={R * 1.9}
+                            fill="var(--cl-halo)"
+                            filter="url(#f-glow)"
+                            style:opacity={revealActive.has(id) ? 0.22 : 0}
+                        />
+                    {/if}
+                {/each}
+            </g>
 
             <!-- Live nodes -->
             {#each positions as pos (pos.id)}
@@ -270,7 +430,9 @@
                     <!-- svelte-ignore a11y_no_static_element_interactions, a11y_click_events_have_key_events -->
                     <g
                         transform={`translate(${p.x},${p.y})`}
-                        style:opacity={clSet.size > 0 && !inCl ? 0.22 : 1}
+                        style:opacity={clSet.size > 0 && !inCl
+                            ? dimNodeOpacity
+                            : 1}
                         class="qnode {interactive
                             ? 'cursor-pointer'
                             : 'pointer-events-none'}"
@@ -287,16 +449,6 @@
                             style="--entry-delay: {entryDelays.get(pos.id) ??
                                 0}ms"
                         >
-                            {#if inCl}
-                                <!-- Halo ring — white in dark mode, dark in light mode -->
-                                <circle
-                                    r={r + 4}
-                                    fill="none"
-                                    style="stroke: var(--cl-halo)"
-                                    stroke-width={2}
-                                    filter="url(#f-glow)"
-                                />
-                            {/if}
                             <circle
                                 {r}
                                 {fill}
@@ -312,18 +464,39 @@
                     </g>
                 {/if}
             {/each}
+
+            <!-- Ping rings (above nodes) -->
+            <g class="halo-layer">
+                {#each pingRings as p (p.key)}
+                    {@const c = xy.get(p.id)}
+                    {#if c}
+                        <circle
+                            class="cl-ping"
+                            cx={c.x}
+                            cy={c.y}
+                            r={R}
+                            fill="none"
+                            stroke="var(--cl-halo)"
+                            stroke-width={2}
+                            style="--r0: {R}px"
+                        />
+                    {/if}
+                {/each}
+            </g>
         </g>
     </svg>
 {/if}
 
 <style>
-    .qnode {
-        transition: opacity var(--dur-ui) ease;
+    .qnode,
+    .edge-live,
+    .entry-node-dead {
+        transition: opacity var(--dur-base) var(--ease-out);
     }
     .edge-live {
         transition:
-            stroke-opacity var(--dur-ui) ease,
-            stroke-width var(--dur-ui) ease;
+            stroke-opacity var(--dur-base) var(--ease-out),
+            stroke-width var(--dur-base) var(--ease-out);
     }
 
     .entry-animating .entry-node {

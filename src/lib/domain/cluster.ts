@@ -20,6 +20,34 @@ type ConnRules = { endpoint: number; chain: number; junction: number };
 
 export type Topology = 'compact' | 'linear' | 'branched';
 
+export type ClusterFilters = {
+    readoutPct: number;
+    cxPct: number;
+    minT1: number;
+    minT2: number;
+};
+
+export type RelaxCandidate = {
+    key: string;
+    label: string;
+    addQ: number;
+    comp: number;
+    filters: ClusterFilters;
+};
+
+export type RelaxSuggestions = {
+    baseQ: number;
+    baseComp: number;
+    candidates: RelaxCandidate[];
+};
+
+export type ClusterResult = {
+    cluster: number[];
+    requested: number;
+    maxComponent: number;
+    allowedCount: number;
+};
+
 export const TOPOLOGIES: { value: Topology; label: string }[] = [
     { value: 'compact', label: 'Compact' },
     { value: 'linear', label: 'Linear' },
@@ -45,7 +73,7 @@ export function findCluster(
     qubits: UiQubit[],
     edges: UiEdge[],
     allowedIds?: Set<number>
-): number[] {
+): ClusterResult {
     const allowed = allowedIds || new Set(qubits.map((q) => q.id));
     const byId = new Map(qubits.map((q) => [q.id, q]));
     const adj = new Map<number, number[]>();
@@ -59,11 +87,13 @@ export function findCluster(
     for (const id of allowed) deg.set(id, (adj.get(id) || []).length);
 
     const total = (connRules.endpoint || 0) + (connRules.chain || 0) + (connRules.junction || 0);
-    if (total === 0) return [];
+    if (total === 0) {
+        return { cluster: [], requested: 0, maxComponent: 0, allowedCount: allowed.size };
+    }
     const ids = [...allowed];
-    // Cluster size is a hard requirement: return exactly `needed` connected
-    // qubits or throw. Do NOT cap to the pool size.
-    const needed = total;
+    // Cluster size is the request, but we allow partial results if the
+    // qualifying pool is smaller (the UI will warn about partials).
+    const needed = Math.min(total, ids.length);
 
     // Connected components of the filtered graph. A cluster of `needed` qubits
     // can only live inside a component with at least that many nodes.
@@ -89,13 +119,9 @@ export function findCluster(
         if (comp.length > maxComponent) maxComponent = comp.length;
     }
 
-    const tooSmall = () =>
-        new Error(
-            `Can't build a connected ${needed}-qubit cluster with the current filters — ` +
-            `the largest connected region is ${maxComponent} qubit${maxComponent === 1 ? '' : 's'}. ` +
-            `Relax the quality filters or reduce the cluster size.`
-        );
-    if (maxComponent < needed) throw tooSmall();
+    if (maxComponent < needed) {
+        return { cluster: [], requested: total, maxComponent, allowedCount: ids.length };
+    }
 
     // topoToRules() encodes the requested topology in connRules: a chain budget
     // means linear, an endpoint budget means branched, otherwise compact.
@@ -231,8 +257,95 @@ export function findCluster(
             best = cluster;
         }
     }
-    // Defensive: eligibility guarantees a full-size cluster, but if growth somehow
-    // failed to reach the target we error rather than return a short result.
-    if (!best || best.length !== needed) throw tooSmall();
+    if (!best || best.length !== needed) {
+        return { cluster: [], requested: total, maxComponent, allowedCount: ids.length };
+    }
+    return { cluster: best, requested: total, maxComponent, allowedCount: ids.length };
+}
+
+export function qualifyQubits(filters: ClusterFilters, qubits: UiQubit[]) {
+    const maxReadout = filters.readoutPct / 100;
+    const set = new Set<number>();
+    for (const q of qubits) {
+        if (!q) continue;
+        const roOk = typeof q.readout_error !== 'number' || q.readout_error <= maxReadout;
+        const t1Ok = typeof q.T1 !== 'number' || q.T1 >= filters.minT1;
+        const t2Ok = typeof q.T2 !== 'number' || q.T2 >= filters.minT2;
+        if (roOk && t1Ok && t2Ok) set.add(q.id);
+    }
+    return set;
+}
+
+export function largestComponent(
+    allowed: Set<number>,
+    edges: UiEdge[],
+    maxCx: number
+): number[] {
+    const adj = new Map<number, number[]>();
+    for (const id of allowed) adj.set(id, []);
+    for (const e of edges) {
+        if (!allowed.has(e.source) || !allowed.has(e.target)) continue;
+        if (typeof e.cx_error === 'number' && e.cx_error > maxCx) continue;
+        adj.get(e.source)?.push(e.target);
+        adj.get(e.target)?.push(e.source);
+    }
+    const seen = new Set<number>();
+    let best: number[] = [];
+    for (const id of allowed) {
+        if (seen.has(id)) continue;
+        const comp: number[] = [];
+        const stack = [id];
+        seen.add(id);
+        while (stack.length) {
+            const cur = stack.pop()!;
+            comp.push(cur);
+            for (const nb of adj.get(cur) || []) {
+                if (!seen.has(nb)) {
+                    seen.add(nb);
+                    stack.push(nb);
+                }
+            }
+        }
+        if (comp.length > best.length) best = comp;
+    }
     return best;
+}
+
+export function predictRelaxations(
+    filters: ClusterFilters,
+    qubits: UiQubit[],
+    edges: UiEdge[]
+): RelaxSuggestions {
+    const baseAllowed = qualifyQubits(filters, qubits);
+    const baseComp = largestComponent(baseAllowed, edges, filters.cxPct / 100).length;
+    const candidates: RelaxCandidate[] = [];
+    const mk = (key: string, label: string, nf: ClusterFilters) => {
+        const allowed = qualifyQubits(nf, qubits);
+        const comp = largestComponent(allowed, edges, nf.cxPct / 100).length;
+        const addQ = allowed.size - baseAllowed.size;
+        const addC = comp - baseComp;
+        if (addQ > 0 || addC > 0) candidates.push({ key, label, addQ, comp, filters: nf });
+    };
+    mk('readoutPct', `Readout ≤ ${Math.min(100, filters.readoutPct + 6).toFixed(0)}%`, {
+        ...filters,
+        readoutPct: Math.min(100, filters.readoutPct + 6)
+    });
+    mk('minT1', `T₁ ≥ ${Math.max(0, filters.minT1 - 50)} μs`, {
+        ...filters,
+        minT1: Math.max(0, filters.minT1 - 50)
+    });
+    mk('minT2', `T₂ ≥ ${Math.max(0, filters.minT2 - 30)} μs`, {
+        ...filters,
+        minT2: Math.max(0, filters.minT2 - 30)
+    });
+    mk('cxPct', `CX ≤ ${Math.min(100, filters.cxPct + 2).toFixed(0)}%`, {
+        ...filters,
+        cxPct: Math.min(100, filters.cxPct + 2)
+    });
+    candidates.sort((a, b) => b.comp - a.comp || b.addQ - a.addQ);
+    return {
+        baseQ: baseAllowed.size,
+        baseComp,
+        candidates: candidates.slice(0, 3)
+    };
 }

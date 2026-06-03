@@ -22,6 +22,13 @@
     const smoothProgress = new Tween(0, { duration: DUR.ui, easing: ease });
     let bytesReceived = $state(0);
     let bytesTotal = $state<number | null>(null);
+    let activeSheet = $state<"controls" | "results" | null>(null);
+    let isMobile = $state(false);
+    let mediaQuery: MediaQueryList | null = null;
+
+    let hasResults = $derived(
+        dashboardState.cluster.length > 0 || dashboardState.findFailed,
+    );
 
     let latticePositions = $derived.by(() => {
         const devicePositions = positionsByDevice?.[dashboardState.device];
@@ -48,6 +55,7 @@
                 }
             });
             positionsByDevice = positions;
+            dashboardState.setPositions(positions);
             dashboardState.applyDataset(dataset);
             await smoothProgress.set(1);
             loadStatus = "transitioning";
@@ -66,6 +74,25 @@
     }
 
     onMount(fetchData);
+
+    function toggleSheet(which: "controls" | "results") {
+        activeSheet = activeSheet === which ? null : which;
+    }
+
+    function closeSheet() {
+        activeSheet = null;
+    }
+
+    onMount(() => {
+        mediaQuery = window.matchMedia("(max-width: 767px)");
+        isMobile = mediaQuery.matches;
+        const handle = (e: MediaQueryListEvent) => {
+            isMobile = e.matches;
+            if (!e.matches) closeSheet();
+        };
+        mediaQuery.addEventListener("change", handle);
+        return () => mediaQuery?.removeEventListener("change", handle);
+    });
 </script>
 
 <!-- ─── Loading overlay ──────────────────────────────────────────────── -->
@@ -163,7 +190,17 @@
         <Topbar />
 
         <div class="plate-body">
-            <OperatePanel />
+            <OperatePanel
+                mobileOpen={activeSheet === "controls"}
+                onClose={closeSheet}
+                onFind={() => {
+                    if (isMobile) {
+                        setTimeout(() => {
+                            activeSheet = "results";
+                        }, 220);
+                    }
+                }}
+            />
 
             <!-- Stage -->
             <div class="plate-stage">
@@ -239,7 +276,61 @@
                 </div>
             </div>
 
-            <ReadPanel />
+            <ReadPanel
+                mobileOpen={activeSheet === "results"}
+                onClose={closeSheet}
+            />
+
+            <!-- Mobile bottom nav -->
+            <nav class="mob-nav" aria-label="Navigation">
+                <button
+                    class="mob-tab"
+                    class:on={activeSheet === "controls"}
+                    onclick={() => toggleSheet("controls")}
+                    aria-label="Controls"
+                >
+                    <svg
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        stroke-width="1.7"
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                        aria-hidden="true"
+                    >
+                        <path d="M4 6h16M4 12h10M4 18h7" />
+                        <circle cx="18" cy="12" r="2.5" />
+                        <circle cx="14" cy="18" r="2.5" />
+                    </svg>
+                    <span>Controls</span>
+                </button>
+                <button
+                    class="mob-tab"
+                    class:on={activeSheet === "results"}
+                    onclick={() => toggleSheet("results")}
+                    aria-label="Results"
+                >
+                    <svg
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        stroke-width="1.7"
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                        aria-hidden="true"
+                    >
+                        <circle cx="12" cy="12" r="9" />
+                        <path d="M12 8v4l2.5 2.5" />
+                    </svg>
+                    <span>Results</span>
+                    <span class="mob-badge" class:show={hasResults}></span>
+                </button>
+            </nav>
+            <div
+                class="mob-backdrop"
+                class:show={activeSheet !== null}
+                onclick={closeSheet}
+            ></div>
         </div>
     </div>
 {/if}
@@ -299,6 +390,13 @@
         font-size: 12.5px;
         color: var(--text-2);
         line-height: 1;
+    }
+
+    @media (max-width: 767px) {
+        .tooltip {
+            bottom: auto;
+            top: 12px;
+        }
     }
 
     /* ─── Loader → app handoff (bar-pulse keyframes in motion.css;

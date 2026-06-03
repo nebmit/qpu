@@ -3,13 +3,29 @@
     import { DUR, ease, prefersReducedMotion } from "$lib/viz/motion";
     import { dashboardState } from "$lib/state/dashboard.svelte";
     import { metricNodeColor, edgeColor } from "$lib/viz/color";
-    import { microseconds, percent, exponential, deltaLabel } from "$lib/viz/format";
+    import { metricScore } from "$lib/domain/metrics";
+    import { BASE_POS } from "$lib/domain/lattice";
+    import {
+        microseconds,
+        percent,
+        exponential,
+        deltaLabel,
+    } from "$lib/viz/format";
 
     // ── color scale endpoints for legend bars ─────────────────────────
     const NODE_LO = metricNodeColor(0); // bad end (dark indigo)
     const NODE_HI = metricNodeColor(1); // good end (yellow-green)
     const EDGE_LO = edgeColor(0); // high error (muted lavender)
     const EDGE_HI = edgeColor(1); // low error (deep indigo)
+
+    let { mobileOpen = false, onClose } = $props<{
+        mobileOpen?: boolean;
+        onClose?: () => void;
+    }>();
+
+    const SCHEMA_W = 268;
+    const SCHEMA_H = 116;
+    const SCHEMA_PAD = 18;
 
     let nodeLegend = $derived.by(() => {
         const m = dashboardState.metricMode;
@@ -63,12 +79,110 @@
         inspectedId !== null && dashboardState.cluster.includes(inspectedId),
     );
 
+    let requestedSize = $derived.by(() =>
+        dashboardState.clusterRequested > 0
+            ? dashboardState.clusterRequested
+            : dashboardState.cluster.length,
+    );
+
+    let isPartial = $derived.by(
+        () =>
+            dashboardState.cluster.length > 0 &&
+            requestedSize > dashboardState.cluster.length,
+    );
+
+    let schematic = $derived.by(() => {
+        const ids = dashboardState.findFailed
+            ? dashboardState.nearestCluster
+            : dashboardState.cluster;
+        if (!ids.length) return null;
+        const devicePositions =
+            dashboardState.positionsByDevice?.[dashboardState.device];
+        const points = ids
+            .map((id) => {
+                const pos = devicePositions?.[String(id)];
+                if (pos) return { id, x: pos.x, y: pos.y };
+                const base = BASE_POS[id];
+                if (!base) return null;
+                return { id, x: base.col, y: base.row };
+            })
+            .filter(Boolean) as { id: number; x: number; y: number }[];
+        if (!points.length) return null;
+        const xs = points.map((p) => p.x);
+        const ys = points.map((p) => p.y);
+        const minX = Math.min(...xs);
+        const maxX = Math.max(...xs);
+        const minY = Math.min(...ys);
+        const maxY = Math.max(...ys);
+        const spanX = Math.max(1e-6, maxX - minX);
+        const spanY = Math.max(1e-6, maxY - minY);
+        const scale = Math.min(
+            (SCHEMA_W - SCHEMA_PAD * 2) / spanX,
+            (SCHEMA_H - SCHEMA_PAD * 2) / spanY,
+        );
+        const offX = (SCHEMA_W - spanX * scale) / 2;
+        const offY = (SCHEMA_H - spanY * scale) / 2;
+        const coord = new Map(
+            points.map((p) => [
+                p.id,
+                {
+                    x: offX + (p.x - minX) * scale,
+                    y: offY + (p.y - minY) * scale,
+                },
+            ]),
+        );
+        const set = new Set(ids);
+        const edges = dashboardState.filteredEdges
+            .filter((e) => set.has(e.source) && set.has(e.target))
+            .map((e) => {
+                const a = coord.get(e.source);
+                const b = coord.get(e.target);
+                if (!a || !b) return null;
+                return { x1: a.x, y1: a.y, x2: b.x, y2: b.y };
+            })
+            .filter(Boolean) as {
+            x1: number;
+            y1: number;
+            x2: number;
+            y2: number;
+        }[];
+        const nodes = ids
+            .map((id) => {
+                const c = coord.get(id);
+                const q = dashboardState.snap.qubits[id];
+                if (!c || !q) return null;
+                const score = metricScore(
+                    q,
+                    dashboardState.metricMode,
+                    dashboardState.ranges,
+                );
+                return {
+                    id,
+                    x: c.x,
+                    y: c.y,
+                    score,
+                    selected: id === dashboardState.selectedId,
+                };
+            })
+            .filter(Boolean) as {
+            id: number;
+            x: number;
+            y: number;
+            score: number;
+            selected: boolean;
+        }[];
+        return { edges, nodes, width: SCHEMA_W, height: SCHEMA_H };
+    });
+
     function closeDetail() {
         dashboardState.selectedId = null;
     }
 </script>
 
-<aside class="plate-read">
+<aside class="plate-read" class:mob-open={mobileOpen}>
+    <div class="sheet-handle" onclick={onClose} aria-label="Close results">
+        <span class="sheet-handle-bar"></span>
+    </div>
     <!-- ── TOP: inspector priority: node detail > cluster result > empty ── -->
 
     {#if inspectedQubit !== null && inspectedId !== null}
@@ -87,7 +201,11 @@
                     >Q{String(inspectedId).padStart(3, "0")}</span
                 >
                 {#if dashboardState.clusterStats}
-                    <span class="mem-badge" class:in={inCluster} class:out={!inCluster}>
+                    <span
+                        class="mem-badge"
+                        class:in={inCluster}
+                        class:out={!inCluster}
+                    >
                         {inCluster ? "✓ in cluster" : "not in cluster"}
                     </span>
                 {/if}
@@ -96,15 +214,21 @@
             <div>
                 <div class="pr-row">
                     <span class="pr-l">T₁</span>
-                    <span class="pr-v">{microseconds(inspectedQubit.T1, 1)}</span>
+                    <span class="pr-v"
+                        >{microseconds(inspectedQubit.T1, 1)}</span
+                    >
                 </div>
                 <div class="pr-row">
                     <span class="pr-l">T₂</span>
-                    <span class="pr-v">{microseconds(inspectedQubit.T2, 1)}</span>
+                    <span class="pr-v"
+                        >{microseconds(inspectedQubit.T2, 1)}</span
+                    >
                 </div>
                 <div class="pr-row">
                     <span class="pr-l">Readout error</span>
-                    <span class="pr-v">{percent(inspectedQubit.readout_error, 2)}</span>
+                    <span class="pr-v"
+                        >{percent(inspectedQubit.readout_error, 2)}</span
+                    >
                 </div>
                 <div class="pr-row">
                     <span class="pr-l">P0|1</span>
@@ -131,72 +255,293 @@
                 {/each}
             {/if}
         </div>
+    {:else if dashboardState.findFailed}
+        <div class="cl-fail fade-in">
+            <div class="cl-fail-head">
+                <div class="cl-fail-ico">
+                    <svg
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        stroke-width="1.7"
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                    >
+                        <circle cx="10.5" cy="10.5" r="6.5" />
+                        <path d="m20 20-4.2-4.2" />
+                        <path d="M8.4 8.4l4.2 4.2M12.6 8.4l-4.2 4.2" />
+                    </svg>
+                </div>
+                <div>
+                    <div class="cl-fail-h">
+                        Can't place {requestedSize} qubits
+                    </div>
+                    <div class="cl-fail-sub">
+                        Largest connected region available:
+                        <b>{dashboardState.nearestCluster.length}Q</b>
+                    </div>
+                </div>
+            </div>
+
+            {#if schematic && dashboardState.nearestCluster.length >= 2}
+                <div class="cr-sch in-fail">
+                    <div class="cr-sch-cap">Closest achievable region</div>
+                    <svg
+                        class="cr-sch-svg"
+                        viewBox={`0 0 ${schematic.width} ${schematic.height}`}
+                        width="100%"
+                        height={schematic.height}
+                    >
+                        {#each schematic.edges as e (e.x1 + e.y1 + e.x2 + e.y2)}
+                            <line
+                                x1={e.x1}
+                                y1={e.y1}
+                                x2={e.x2}
+                                y2={e.y2}
+                                stroke="var(--accent)"
+                                stroke-opacity={0.5}
+                                stroke-width={1.4}
+                                stroke-linecap="round"
+                            />
+                        {/each}
+                        {#each schematic.nodes as n (n.id)}
+                            <g
+                                class="sch-node"
+                                onclick={() =>
+                                    (dashboardState.selectedId = n.id)}
+                                style="cursor:pointer"
+                            >
+                                {#if n.selected}
+                                    <circle
+                                        cx={n.x}
+                                        cy={n.y}
+                                        r={8.5}
+                                        fill="none"
+                                        stroke="var(--accent)"
+                                        stroke-width={1.5}
+                                    />
+                                {/if}
+                                <circle
+                                    cx={n.x}
+                                    cy={n.y}
+                                    r={5.4}
+                                    fill={metricNodeColor(n.score)}
+                                    stroke="var(--surface)"
+                                    stroke-width={1.4}
+                                />
+                            </g>
+                        {/each}
+                    </svg>
+                </div>
+            {:else}
+                <p class="cl-fail-p">
+                    Only <b>{dashboardState.allowedQubitIds.size} qubits</b>
+                    qualify and they don't connect into a usable block under the
+                    current filters.
+                </p>
+            {/if}
+
+            {#if dashboardState.relaxSuggestions?.candidates.length}
+                <div class="cl-relax-h">Relax one constraint</div>
+                <div class="cl-relax-list">
+                    {#each dashboardState.relaxSuggestions.candidates as c, i (c.label)}
+                        <button
+                            class="cl-relax"
+                            onclick={() => dashboardState.applyRelaxation(i)}
+                        >
+                            <span class="cl-relax-l">{c.label}</span>
+                            <span class="cl-relax-g">→ {c.comp}Q block</span>
+                        </button>
+                    {/each}
+                </div>
+            {/if}
+
+            <div class="cl-fail-acts">
+                {#if dashboardState.nearestCluster.length >= 2}
+                    <button
+                        class="cl-fail-btn primary"
+                        onclick={() => dashboardState.shrinkToNearestAndRetry()}
+                    >
+                        <svg
+                            viewBox="0 0 16 16"
+                            fill="none"
+                            stroke="currentColor"
+                            stroke-width="2"
+                            stroke-linecap="round"
+                            stroke-linejoin="round"
+                        >
+                            <path d="M3 8.5l3.2 3.2L13 4.8" />
+                        </svg>
+                        Use the {dashboardState.nearestCluster.length}Q region
+                    </button>
+                {/if}
+            </div>
+        </div>
     {:else if dashboardState.clusterStats}
         <!-- Cluster result card -->
         {@const cs = dashboardState.clusterStats}
-        <div class="cluster-result fade-in">
-            <div class="cr-head">
-                <div class="cr-title">
-                    <div class="cr-dot"></div>
-                    Best cluster
-                </div>
+        <div class="cr fade-in">
+            <div class="cr-top">
+                <span class="cr-eye"
+                    ><span class="cr-dot"></span>Best cluster</span
+                >
                 <button
-                    class="cr-clear"
+                    class="cr-x"
                     onclick={() => dashboardState.clearCluster()}
-                    >Clear ×</button
+                    title="Clear"
                 >
+                    <svg
+                        viewBox="0 0 16 16"
+                        fill="none"
+                        stroke="currentColor"
+                        stroke-width="1.7"
+                        stroke-linecap="round"
+                    >
+                        <path d="M4 4l8 8M12 4l-8 8" />
+                    </svg>
+                </button>
             </div>
 
-            <div class="cr-size">
+            <div class="cr-hero">
                 <span class="cr-n">{dashboardState.cluster.length}</span>
-                <span class="cr-q"
-                    >qubits matched · {dashboardState.topology}</span
-                >
+                <span class="cr-of">/ {requestedSize} Q</span>
+                <span class="cr-topo">{dashboardState.topology}</span>
             </div>
 
-            {#each [{ l: "T₁", v: microseconds(cs.T1, 0), d: cs.deltaT1 }, { l: "T₂", v: microseconds(cs.T2, 0), d: cs.deltaT2 }, { l: "Readout", v: percent(cs.ro, 2), d: cs.deltaRo }] as row (row.l)}
-                <div class="cr-row">
-                    <span class="cr-l">{row.l}</span>
-                    <span class="cr-v">{row.v}</span>
-                    {#if row.d}
-                        <span
-                            class="cr-delta"
-                            class:up={row.d.dir === "up"}
-                            class:down={row.d.dir === "down"}
-                            class:flat={row.d.dir === "flat"}
-                        >
-                            {row.d.dir === "up"
-                                ? "▲"
-                                : row.d.dir === "down"
-                                  ? "▼"
-                                  : "—"}
-                            {deltaLabel(row.d.magnitude)}
-                        </span>
-                    {:else}
-                        <span class="cr-delta flat">—</span>
-                    {/if}
+            {#if schematic}
+                <div class="cr-sch">
+                    <div class="cr-sch-cap">
+                        Cluster shape · lifted from lattice
+                    </div>
+                    <svg
+                        class="cr-sch-svg"
+                        viewBox={`0 0 ${schematic.width} ${schematic.height}`}
+                        width="100%"
+                        height={schematic.height}
+                    >
+                        {#each schematic.edges as e (e.x1 + e.y1 + e.x2 + e.y2)}
+                            <line
+                                x1={e.x1}
+                                y1={e.y1}
+                                x2={e.x2}
+                                y2={e.y2}
+                                stroke="var(--accent)"
+                                stroke-opacity={0.5}
+                                stroke-width={1.4}
+                                stroke-linecap="round"
+                            />
+                        {/each}
+                        {#each schematic.nodes as n (n.id)}
+                            <g
+                                class="sch-node"
+                                onclick={() =>
+                                    (dashboardState.selectedId = n.id)}
+                                style="cursor:pointer"
+                            >
+                                {#if n.selected}
+                                    <circle
+                                        cx={n.x}
+                                        cy={n.y}
+                                        r={8.5}
+                                        fill="none"
+                                        stroke="var(--accent)"
+                                        stroke-width={1.5}
+                                    />
+                                {/if}
+                                <circle
+                                    cx={n.x}
+                                    cy={n.y}
+                                    r={5.4}
+                                    fill={metricNodeColor(n.score)}
+                                    stroke="var(--surface)"
+                                    stroke-width={1.4}
+                                />
+                            </g>
+                        {/each}
+                    </svg>
                 </div>
-            {/each}
+            {/if}
+
+            {#if isPartial}
+                <div class="cr-warn">
+                    <svg
+                        viewBox="0 0 16 16"
+                        fill="none"
+                        stroke="currentColor"
+                        stroke-width="1.6"
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                    >
+                        <path d="M8 2.2 1.6 13.4h12.8L8 2.2Z" />
+                        <path d="M8 6.4v3.1" />
+                        <circle
+                            cx="8"
+                            cy="11.4"
+                            r="0.5"
+                            fill="currentColor"
+                            stroke="none"
+                        />
+                    </svg>
+                    <div class="cr-warn-tx">
+                        <b>{dashboardState.cluster.length} of {requestedSize}</b
+                        >
+                        qubits placed — the qualifying subgraph is fragmented. Loosen
+                        a filter or lower the size for a complete block.
+                    </div>
+                </div>
+            {/if}
+
+            <div class="cr-metrics">
+                {#each [{ l: "T₁", v: microseconds(cs.T1, 0), d: cs.deltaT1 }, { l: "T₂", v: microseconds(cs.T2, 0), d: cs.deltaT2 }, { l: "Readout", v: percent(cs.ro, 2), d: cs.deltaRo }] as row (row.l)}
+                    <div class="cr-mrow">
+                        <span class="cr-ml">{row.l}</span>
+                        <span class="cr-mv">{row.v}</span>
+                        {#if row.d}
+                            <span
+                                class="cr-delta"
+                                class:up={row.d.dir === "up"}
+                                class:down={row.d.dir === "down"}
+                                class:flat={row.d.dir === "flat"}
+                            >
+                                {row.d.dir === "up"
+                                    ? "▲"
+                                    : row.d.dir === "down"
+                                      ? "▼"
+                                      : "—"}
+                                {deltaLabel(row.d.magnitude)}
+                            </span>
+                        {:else}
+                            <span class="cr-delta flat">—</span>
+                        {/if}
+                    </div>
+                {/each}
+            </div>
             <div class="cr-vsmed">▲ better than device median</div>
 
-            <div class="cr-members-h">
-                <span class="t">{dashboardState.cluster.length} members</span>
-                <span class="hint">click to inspect →</span>
-            </div>
-            <div class="cr-members">
-                {#each dashboardState.cluster as id (id)}
-                    <button
-                        class="qchip"
-                        class:on={dashboardState.selectedId === id}
-                        animate:flip={{
-                            duration: prefersReducedMotion.current ? 0 : DUR.ui,
-                            easing: ease,
-                        }}
-                        onclick={() => (dashboardState.selectedId = id)}
-                    >
-                        Q{id}
-                    </button>
-                {/each}
+            <div class="cr-mem">
+                <div class="cr-mem-h">
+                    <span class="cr-mem-t">
+                        {dashboardState.cluster.length} members
+                    </span>
+                    <span class="cr-mem-hint">click to inspect →</span>
+                </div>
+                <div class="cr-chips">
+                    {#each dashboardState.cluster as id (id)}
+                        <button
+                            class="qchip"
+                            class:on={dashboardState.selectedId === id}
+                            animate:flip={{
+                                duration: prefersReducedMotion.current
+                                    ? 0
+                                    : DUR.ui,
+                                easing: ease,
+                            }}
+                            onclick={() => (dashboardState.selectedId = id)}
+                        >
+                            Q{id}
+                        </button>
+                    {/each}
+                </div>
             </div>
         </div>
     {:else}
@@ -215,11 +560,15 @@
         <div class="eyebrow mb">{dashboardState.device} · medians</div>
         <div class="pr-row">
             <span class="pr-l">T₁</span>
-            <span class="pr-v">{microseconds(dashboardState.medians.T1, 0)}</span>
+            <span class="pr-v"
+                >{microseconds(dashboardState.medians.T1, 0)}</span
+            >
         </div>
         <div class="pr-row">
             <span class="pr-l">T₂</span>
-            <span class="pr-v">{microseconds(dashboardState.medians.T2, 0)}</span>
+            <span class="pr-v"
+                >{microseconds(dashboardState.medians.T2, 0)}</span
+            >
         </div>
         <div class="pr-row">
             <span class="pr-l">Readout</span>
@@ -227,7 +576,8 @@
         </div>
         <div class="pr-row">
             <span class="pr-l">CX gate</span>
-            <span class="pr-v">{exponential(dashboardState.medians.cx, 2)}</span>
+            <span class="pr-v">{exponential(dashboardState.medians.cx, 2)}</span
+            >
         </div>
         <div class="pr-row">
             <span class="pr-l">Lattice</span>
@@ -277,61 +627,535 @@
 
 <style>
     /* ═══ Read rows + footer ═══ */
-    .pr-row  { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; padding: 6px 0; border-bottom: 1px solid var(--border); }
-    .pr-row:last-child { border-bottom: none; }
-    .pr-l    { font-size: 11.5px; color: var(--text-2); white-space: nowrap; }
-    .pr-v    { font-size: 12.5px; color: var(--text); white-space: nowrap; font-family: var(--font-mono); }
-    .pr-qid  { font-size: 21px; color: var(--accent); line-height: 1; font-family: var(--font-mono); }
-    .pr-cxh  { font-size: 9.5px; color: var(--text-3); letter-spacing: 0.08em; text-transform: uppercase; margin: 15px 0 4px; }
+    .pr-row {
+        display: flex;
+        justify-content: space-between;
+        align-items: baseline;
+        gap: 10px;
+        padding: 6px 0;
+        border-bottom: 1px solid var(--border);
+    }
+    .pr-row:last-child {
+        border-bottom: none;
+    }
+    .pr-l {
+        font-size: 11.5px;
+        color: var(--text-2);
+        white-space: nowrap;
+    }
+    .pr-v {
+        font-size: 12.5px;
+        color: var(--text);
+        white-space: nowrap;
+        font-family: var(--font-mono);
+    }
+    .pr-qid {
+        font-size: 21px;
+        color: var(--accent);
+        line-height: 1;
+        font-family: var(--font-mono);
+    }
+    .pr-cxh {
+        font-size: 9.5px;
+        color: var(--text-3);
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        margin: 15px 0 4px;
+    }
 
-    .read-foot    { margin-top: auto; padding-top: 26px; }
-    .read-divider { height: 1px; background: var(--border); margin: 22px 0; }
+    .read-foot {
+        margin-top: auto;
+        padding-top: 26px;
+    }
+    .read-divider {
+        height: 1px;
+        background: var(--border);
+        margin: 22px 0;
+    }
 
     /* ═══ Inline colour-scale legend ═══ */
-    .leg-inline .lg-label { font-size: 9px; letter-spacing: 0.09em; text-transform: uppercase; color: var(--text-3); margin-bottom: 7px; font-weight: 500; }
-    .leg-inline .lg-bar   { height: 6px; border-radius: 3px; margin-bottom: 5px; }
-    .leg-inline .lg-ends  { display: flex; justify-content: space-between; font-size: 9.5px; font-family: var(--font-mono); color: var(--text-3); }
-    .leg-inline .lg-pair  { margin-bottom: 15px; }
-    .leg-inline .lg-pair:last-child { margin-bottom: 0; }
+    .leg-inline .lg-label {
+        font-size: 9px;
+        letter-spacing: 0.09em;
+        text-transform: uppercase;
+        color: var(--text-3);
+        margin-bottom: 7px;
+        font-weight: 500;
+    }
+    .leg-inline .lg-bar {
+        height: 6px;
+        border-radius: 3px;
+        margin-bottom: 5px;
+    }
+    .leg-inline .lg-ends {
+        display: flex;
+        justify-content: space-between;
+        font-size: 9.5px;
+        font-family: var(--font-mono);
+        color: var(--text-3);
+    }
+    .leg-inline .lg-pair {
+        margin-bottom: 15px;
+    }
+    .leg-inline .lg-pair:last-child {
+        margin-bottom: 0;
+    }
 
     /* ═══ Cluster result card ═══ */
-    .cluster-result { background: var(--accent-surface); border: 1px solid var(--accent-border); border-radius: var(--radius-md); padding: 15px 16px; }
-    .cr-head        { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
-    .cr-title       { display: flex; align-items: center; gap: 7px; font-size: 10px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--accent); font-weight: 600; }
-    .cr-dot         { width: 7px; height: 7px; border-radius: 50%; background: var(--accent); box-shadow: 0 0 0 3px color-mix(in oklch, var(--accent) 22%, transparent); }
-    .cr-clear       { background: none; border: none; color: var(--text-3); cursor: pointer; font-size: 11px; padding: 0; }
-    .cr-clear:hover { color: var(--text-2); }
-    .cr-size        { display: flex; align-items: baseline; gap: 7px; margin-bottom: 15px; }
-    .cr-n           { font-size: 32px; font-weight: 500; color: var(--text); line-height: 1; font-family: var(--font-mono); }
-    .cr-q           { font-size: 11.5px; color: var(--text-3); }
-    .cr-row         { display: grid; grid-template-columns: 1fr auto auto; align-items: baseline; gap: 10px; padding: 6px 0; border-bottom: 1px solid var(--accent-border); }
-    .cr-row:last-of-type { border-bottom: none; }
-    .cr-l           { font-size: 11.5px; color: var(--text-2); }
-    .cr-v           { font-size: 13px; color: var(--text); font-family: var(--font-mono); }
-    .cr-delta       { font-size: 10px; font-family: var(--font-mono); padding: 1px 6px; border-radius: 99px; line-height: 1.5; white-space: nowrap; }
-    .cr-delta.up    { color: var(--pos); background: var(--pos-bg); }
-    .cr-delta.down  { color: var(--neg); background: var(--neg-bg); }
-    .cr-delta.flat  { color: var(--text-3); background: transparent; }
-    .cr-vsmed       { font-size: 9.5px; color: var(--text-3); text-align: right; margin-top: 6px; }
-    .cr-members-h   { display: flex; align-items: center; justify-content: space-between; margin: 14px 0 9px; padding-top: 13px; border-top: 1px solid var(--accent-border); }
-    .cr-members-h .t    { font-size: 9.5px; letter-spacing: 0.07em; text-transform: uppercase; color: var(--text-3); font-weight: 500; }
-    .cr-members-h .hint { font-size: 9.5px; color: var(--text-3); }
-    .cr-members     { display: flex; flex-wrap: wrap; gap: 4px; }
+    .cr {
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: var(--radius-lg);
+        box-shadow: var(--shadow-panel);
+        overflow: hidden;
+    }
+    .cr-top {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 13px 16px 0;
+    }
+    .cr-eye {
+        display: inline-flex;
+        align-items: center;
+        gap: 7px;
+        font-size: 10px;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        color: var(--accent);
+        font-weight: 600;
+    }
+    .cr-dot {
+        width: 7px;
+        height: 7px;
+        border-radius: 50%;
+        background: var(--accent);
+        box-shadow: 0 0 0 3px
+            color-mix(in oklch, var(--accent) 22%, transparent);
+    }
+    .cr-x {
+        width: 22px;
+        height: 22px;
+        border-radius: var(--radius-sm);
+        border: 1px solid transparent;
+        background: transparent;
+        color: var(--text-3);
+        cursor: pointer;
+        display: grid;
+        place-items: center;
+        transition: all var(--dur-fast);
+    }
+    .cr-x:hover {
+        color: var(--text);
+        background: var(--read-bg);
+        border-color: var(--border);
+    }
+    .cr-x svg {
+        width: 12px;
+        height: 12px;
+    }
 
-    .qchip         { font-size: 10.5px; padding: 3px 7px; border-radius: 5px; border: 1px solid var(--accent-border);
-                     background: var(--surface); color: var(--text-2); cursor: pointer; transition: all var(--dur-fast); font-family: var(--font-mono); }
-    .qchip:hover   { color: var(--text); border-color: var(--accent); }
-    .qchip.on      { background: var(--accent); color: var(--accent-fg); border-color: var(--accent); }
+    .cr-hero {
+        padding: 8px 16px 16px;
+        display: flex;
+        align-items: baseline;
+        gap: 9px;
+    }
+    .cr-n {
+        font-size: 38px;
+        font-weight: 500;
+        color: var(--text);
+        line-height: 0.9;
+        font-family: var(--font-mono);
+        letter-spacing: -0.02em;
+    }
+    .cr-of {
+        font-size: 12px;
+        color: var(--text-3);
+        font-family: var(--font-mono);
+    }
+    .cr-topo {
+        margin-left: auto;
+        align-self: center;
+        font-size: 10px;
+        letter-spacing: 0.04em;
+        text-transform: uppercase;
+        color: var(--text-2);
+        background: var(--read-bg);
+        border: 1px solid var(--border);
+        border-radius: 99px;
+        padding: 3px 9px;
+        font-weight: 500;
+    }
+
+    .cr-metrics {
+        padding: 0 16px;
+    }
+    .cr-mrow {
+        display: grid;
+        grid-template-columns: 1fr auto auto;
+        align-items: baseline;
+        gap: 10px;
+        padding: 8px 0;
+        border-top: 1px solid var(--border);
+    }
+    .cr-mrow:first-child {
+        border-top: none;
+    }
+    .cr-ml {
+        font-size: 11.5px;
+        color: var(--text-2);
+    }
+    .cr-mv {
+        font-size: 13px;
+        color: var(--text);
+        font-family: var(--font-mono);
+    }
+    .cr-delta {
+        font-size: 10px;
+        font-family: var(--font-mono);
+        padding: 1px 6px;
+        border-radius: 99px;
+        line-height: 1.5;
+        white-space: nowrap;
+        display: inline-flex;
+        align-items: center;
+        gap: 3px;
+        min-width: 46px;
+        justify-content: center;
+    }
+    .cr-delta.up {
+        color: var(--pos);
+        background: var(--pos-bg);
+    }
+    .cr-delta.down {
+        color: var(--neg);
+        background: var(--neg-bg);
+    }
+    .cr-delta.flat {
+        color: var(--text-3);
+        background: var(--read-bg);
+    }
+    .cr-vsmed {
+        font-size: 9.5px;
+        color: var(--text-3);
+        text-align: right;
+        padding: 6px 16px 0;
+    }
+
+    .cr-mem {
+        padding: 13px 16px 15px;
+        margin-top: 13px;
+        border-top: 1px solid var(--border);
+        background: var(--read-bg);
+    }
+    .cr-mem-h {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        margin-bottom: 10px;
+    }
+    .cr-mem-t {
+        font-size: 9.5px;
+        letter-spacing: 0.07em;
+        text-transform: uppercase;
+        color: var(--text-3);
+        font-weight: 600;
+    }
+    .cr-mem-hint {
+        font-size: 9.5px;
+        color: var(--text-3);
+    }
+    .cr-chips {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 4px;
+        max-height: 116px;
+        overflow-y: auto;
+    }
+    .qchip {
+        font-size: 10.5px;
+        padding: 3px 7px;
+        border-radius: 5px;
+        border: 1px solid var(--border);
+        background: var(--surface);
+        color: var(--text-2);
+        cursor: pointer;
+        transition: all var(--dur-fast);
+        font-family: var(--font-mono);
+    }
+    .qchip:hover {
+        color: var(--text);
+        border-color: var(--accent);
+    }
+    .qchip.on {
+        background: var(--accent);
+        color: var(--accent-fg);
+        border-color: var(--accent);
+    }
+
+    .cr-warn {
+        display: flex;
+        gap: 8px;
+        align-items: flex-start;
+        margin: 0 16px 14px;
+        padding: 9px 11px;
+        background: var(--warn-bg);
+        border: 1px solid var(--warn-border);
+        border-radius: var(--radius-sm);
+    }
+    .cr-warn svg {
+        width: 14px;
+        height: 14px;
+        color: var(--warn);
+        flex-shrink: 0;
+        margin-top: 1px;
+    }
+    .cr-warn-tx {
+        font-size: 11px;
+        line-height: 1.5;
+        color: var(--text-2);
+    }
+    .cr-warn-tx b {
+        color: var(--text);
+        font-weight: 600;
+    }
+
+    .cr-sch {
+        margin: 2px 16px 14px;
+        padding: 12px 12px 8px;
+        background: var(--read-bg);
+        border: 1px solid var(--border);
+        border-radius: var(--radius-md);
+    }
+    .cr-sch.in-fail {
+        margin: 14px 0 4px;
+    }
+    .cr-sch-cap {
+        font-size: 9px;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        color: var(--text-3);
+        font-weight: 600;
+        margin-bottom: 7px;
+    }
+    .cr-sch-svg {
+        display: block;
+        overflow: visible;
+    }
+    .sch-node circle:last-child {
+        transition: r var(--dur-fast);
+    }
+    .sch-node:hover circle:last-child {
+        r: 6.6;
+    }
+
+    /* ═══ Failure card ═══ */
+    .cl-fail {
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: var(--radius-lg);
+        box-shadow: var(--shadow-panel);
+        padding: 18px 18px 20px;
+    }
+    .cl-fail-head {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        text-align: left;
+        margin-bottom: 4px;
+    }
+    .cl-fail-ico {
+        width: 40px;
+        height: 40px;
+        border-radius: 11px;
+        flex-shrink: 0;
+        display: grid;
+        place-items: center;
+        background: var(--warn-bg);
+        color: var(--warn);
+        border: 1px solid var(--warn-border);
+    }
+    .cl-fail-ico svg {
+        width: 20px;
+        height: 20px;
+    }
+    .cl-fail-h {
+        font-size: 14px;
+        font-weight: 600;
+        color: var(--text);
+    }
+    .cl-fail-sub {
+        font-size: 11px;
+        color: var(--text-3);
+        margin-top: 2px;
+    }
+    .cl-fail-sub b {
+        color: var(--text-2);
+        font-weight: 600;
+        font-family: var(--font-mono);
+    }
+    .cl-fail-p {
+        font-size: 11.5px;
+        line-height: 1.6;
+        color: var(--text-3);
+        margin: 14px 0 4px;
+        text-wrap: pretty;
+    }
+    .cl-fail-p b {
+        color: var(--text-2);
+        font-weight: 500;
+    }
+
+    .cl-relax-h {
+        text-align: left;
+        font-size: 9.5px;
+        letter-spacing: 0.07em;
+        text-transform: uppercase;
+        color: var(--text-3);
+        font-weight: 600;
+        margin: 16px 0 8px;
+    }
+    .cl-relax-list {
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+        margin-bottom: 16px;
+    }
+    .cl-relax {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 10px;
+        width: 100%;
+        padding: 9px 11px;
+        background: var(--surface);
+        border: 1px solid var(--border-mid);
+        border-radius: var(--radius-sm);
+        cursor: pointer;
+        transition: all var(--dur-fast);
+        text-align: left;
+    }
+    .cl-relax:hover {
+        border-color: var(--accent);
+        background: var(--accent-surface);
+    }
+    .cl-relax-l {
+        font-size: 12px;
+        color: var(--text);
+        font-family: var(--font-mono);
+        white-space: nowrap;
+    }
+    .cl-relax-g {
+        font-size: 11px;
+        color: var(--pos);
+        font-weight: 600;
+        font-family: var(--font-mono);
+        white-space: nowrap;
+        flex-shrink: 0;
+    }
+
+    .cl-fail-acts {
+        display: flex;
+        flex-direction: column;
+        gap: 7px;
+    }
+    .cl-fail-btn {
+        width: 100%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 7px;
+        padding: 9px 12px;
+        border-radius: var(--radius-sm);
+        font-size: 12px;
+        font-weight: 500;
+        font-family: var(--font-sans);
+        cursor: pointer;
+        transition: all var(--dur-fast);
+    }
+    .cl-fail-btn.primary {
+        background: var(--accent);
+        border: 1px solid var(--accent);
+        color: var(--accent-fg);
+    }
+    .cl-fail-btn.primary:hover {
+        opacity: 0.92;
+        box-shadow: 0 3px 14px
+            color-mix(in oklch, var(--accent) 38%, transparent);
+    }
+    .cl-fail-btn.ghost {
+        background: transparent;
+        border: 1px solid var(--border-mid);
+        color: var(--text-2);
+    }
+    .cl-fail-btn.ghost:hover {
+        border-color: var(--accent-border);
+        color: var(--text);
+        background: var(--accent-surface);
+    }
+    .cl-fail-btn svg {
+        width: 13px;
+        height: 13px;
+    }
 
     /* ═══ Inspector drill-down ═══ */
-    .insp-back        { display: inline-flex; align-items: center; gap: 5px; background: none; border: none; color: var(--text-3);
-                        cursor: pointer; font-size: 11px; font-family: var(--font-sans); padding: 0; margin-bottom: 13px; transition: color var(--dur-fast); }
-    .insp-back:hover  { color: var(--accent); }
-    .insp-qhead       { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 12px; }
-    .mem-badge        { font-size: 9px; letter-spacing: 0.05em; text-transform: uppercase; font-weight: 600;
-                        padding: 3px 8px; border-radius: 99px; white-space: nowrap; }
-    .mem-badge.in     { color: var(--accent); background: var(--accent-surface); border: 1px solid var(--accent-border); }
-    .mem-badge.out    { color: var(--text-3); background: var(--read-bg); border: 1px solid var(--border); }
-    .insp-empty       { font-size: 12px; color: var(--text-3); line-height: 1.7; }
-    .insp-empty b     { color: var(--text-2); font-weight: 500; }
+    .insp-back {
+        display: inline-flex;
+        align-items: center;
+        gap: 5px;
+        background: none;
+        border: none;
+        color: var(--text-3);
+        cursor: pointer;
+        font-size: 11px;
+        font-family: var(--font-sans);
+        padding: 0;
+        margin-bottom: 13px;
+        transition: color var(--dur-fast);
+    }
+    .insp-back:hover {
+        color: var(--accent);
+    }
+    .insp-qhead {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 10px;
+        margin-bottom: 12px;
+    }
+    .mem-badge {
+        font-size: 9px;
+        letter-spacing: 0.05em;
+        text-transform: uppercase;
+        font-weight: 600;
+        padding: 3px 8px;
+        border-radius: 99px;
+        white-space: nowrap;
+    }
+    .mem-badge.in {
+        color: var(--accent);
+        background: var(--accent-surface);
+        border: 1px solid var(--accent-border);
+    }
+    .mem-badge.out {
+        color: var(--text-3);
+        background: var(--read-bg);
+        border: 1px solid var(--border);
+    }
+    .insp-empty {
+        font-size: 12px;
+        color: var(--text-3);
+        line-height: 1.7;
+    }
+    .insp-empty b {
+        color: var(--text-2);
+        font-weight: 500;
+    }
+
+    @media (min-width: 768px) and (max-width: 1199px) {
+        .cr-n {
+            font-size: 30px;
+        }
+    }
 </style>

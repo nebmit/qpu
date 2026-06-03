@@ -79,7 +79,7 @@
     <!-- figure zone (center stage) — view selector lives in the figure header -->
     <div class="tb-center">
         <div class="tb-figgrp">
-            <span class="fig-no">Fig.&nbsp;01</span>
+            <span class="fig-no desk-only">Fig.&nbsp;01</span>
             <div class="seg">
                 {#each METRIC_OPTIONS as m (m.value)}
                     <button
@@ -144,33 +144,135 @@
 
 <style>
     /* ── Top bar zones (aligned with the plate's three columns) ─────── */
-    .topbar    { display: flex; align-items: stretch; height: 60px; background: var(--surface); border-bottom: 1px solid var(--border); flex-shrink: 0; }
-    .tb-left   { width: 272px; display: flex; align-items: center; gap: 12px; padding: 0 20px; border-right: 1px solid var(--border); flex-shrink: 0; justify-content: space-between; }
-    .tb-center { flex: 1; min-width: 0; display: flex; align-items: center; justify-content: flex-start; padding: 0 26px; gap: 14px; }
-    .tb-right  { width: 280px; display: flex; align-items: center; justify-content: flex-end; gap: 8px; padding: 0 18px; flex-shrink: 0; }
+    .topbar {
+        display: flex;
+        align-items: stretch;
+        height: 60px;
+        background: var(--surface);
+        border-bottom: 1px solid var(--border);
+        flex-shrink: 0;
+    }
+    .tb-left {
+        width: 272px;
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        padding: 0 20px;
+        border-right: 1px solid var(--border);
+        flex-shrink: 0;
+        justify-content: space-between;
+    }
+    .tb-center {
+        flex: 1;
+        min-width: 0;
+        display: flex;
+        align-items: center;
+        justify-content: flex-start;
+        padding: 0 26px;
+        gap: 14px;
+    }
+    .tb-right {
+        width: 280px;
+        display: flex;
+        align-items: center;
+        justify-content: flex-end;
+        gap: 8px;
+        padding: 0 18px;
+        flex-shrink: 0;
+    }
 
-    .tb-figgrp { display: flex; align-items: center; gap: 14px; }
-    .fig-no    { font-family: var(--font-mono); font-size: 10.5px; letter-spacing: 0.04em; color: var(--text-3); flex-shrink: 0; }
+    .tb-figgrp {
+        display: flex;
+        align-items: center;
+        gap: 14px;
+    }
+    .fig-no {
+        font-family: var(--font-mono);
+        font-size: 10.5px;
+        letter-spacing: 0.04em;
+        color: var(--text-3);
+        flex-shrink: 0;
+    }
 
     /* ── Brand ─────────────────────────────────────────────────────── */
-    .brand-word   { font-size: 15px; font-weight: 300; letter-spacing: -0.01em; color: var(--text); white-space: nowrap; }
-    .brand-word b { font-weight: 600; }
+    .brand-word {
+        font-size: 15px;
+        font-weight: 300;
+        letter-spacing: -0.01em;
+        color: var(--text);
+        white-space: nowrap;
+    }
+    .brand-word b {
+        font-weight: 600;
+    }
 
     /* ── Icon + GitHub buttons ─────────────────────────────────────── */
-    .ibtn { width: 32px; height: 32px; border-radius: var(--radius-sm); border: 1px solid var(--border); background: var(--surface);
-            color: var(--text-3); cursor: pointer; display: flex; align-items: center; justify-content: center;
-            flex-shrink: 0; transition: all var(--dur-fast); }
-    .ibtn:hover { color: var(--text-2); border-color: var(--border-mid); }
+    .ibtn {
+        width: 32px;
+        height: 32px;
+        border-radius: var(--radius-sm);
+        border: 1px solid var(--border);
+        background: var(--surface);
+        color: var(--text-3);
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        flex-shrink: 0;
+        transition: all var(--dur-fast);
+    }
+    .ibtn:hover {
+        color: var(--text-2);
+        border-color: var(--border-mid);
+    }
 
-    .gh { width: 32px; height: 32px; border-radius: var(--radius-sm); border: 1px solid var(--border); background: var(--surface);
-          color: var(--text-2); display: flex; align-items: center; justify-content: center; flex-shrink: 0;
-          cursor: pointer; transition: all var(--dur-fast); text-decoration: none; }
-    .gh:hover { color: var(--text); background: var(--accent-surface); border-color: var(--accent-border); }
+    .gh {
+        width: 32px;
+        height: 32px;
+        border-radius: var(--radius-sm);
+        border: 1px solid var(--border);
+        background: var(--surface);
+        color: var(--text-2);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        flex-shrink: 0;
+        cursor: pointer;
+        transition: all var(--dur-fast);
+        text-decoration: none;
+    }
+    .gh:hover {
+        color: var(--text);
+        background: var(--accent-surface);
+        border-color: var(--accent-border);
+    }
 
     .theme-ico {
         display: inline-flex;
         align-items: center;
         justify-content: center;
         view-transition-name: theme-ico;
+    }
+
+    @media (max-width: 767px) {
+        .topbar {
+            height: 52px;
+        }
+        .tb-left {
+            width: auto;
+            padding: 0 10px;
+            border-right: none;
+        }
+        .brand-word {
+            display: none;
+        }
+        .tb-center {
+            padding: 0 8px;
+            gap: 8px;
+        }
+        .tb-right {
+            width: auto;
+            padding: 0 10px;
+        }
     }
 </style>

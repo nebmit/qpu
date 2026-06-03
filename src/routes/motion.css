@@ -44,6 +44,11 @@
   100% { filter: drop-shadow(0 0 0 transparent); }
 }
 
+@keyframes cl-ping {
+  from { r: var(--r0, 6px); opacity: 0.85; stroke-width: 2.2; }
+  to   { r: 24px; opacity: 0; stroke-width: 0.4; }
+}
+
 @keyframes theme-ico-out {
   to { opacity: 0; transform: rotate(-90deg) scale(0.5); }
 }
@@ -54,6 +59,8 @@
 
 /* ─── Shared animation utilities ──────────────────────────────────── */
 .fade-in { animation: fadeIn var(--dur-base) var(--ease-out) forwards; }
+.cl-ping { animation: cl-ping 0.72s var(--ease-out) forwards; }
+.cl-halo-disc { transition: opacity var(--dur-base) var(--ease-out); pointer-events: none; }
 
 @media (prefers-reduced-motion: no-preference) {
   ::view-transition-old(root),

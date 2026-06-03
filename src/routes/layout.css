@@ -45,6 +45,9 @@
   --pos-bg: oklch(94% 0.05 155);
   --neg:    oklch(52% 0.15 25);
   --neg-bg: oklch(94% 0.05 30);
+  --warn:       oklch(58% 0.12 70);
+  --warn-bg:    oklch(95% 0.045 75);
+  --warn-border: oklch(82% 0.07 75);
 
   --shadow-panel: 0 4px 20px rgba(15, 23, 42, 0.07);
   --shadow-pop:   0 12px 40px rgba(15, 23, 42, 0.14);
@@ -83,6 +86,9 @@
   --pos-bg: oklch(32% 0.07 155);
   --neg:    oklch(70% 0.16 25);
   --neg-bg: oklch(33% 0.08 28);
+  --warn:       oklch(80% 0.12 75);
+  --warn-bg:    oklch(33% 0.06 75);
+  --warn-border: oklch(48% 0.08 75);
 
   --shadow-panel: 0 4px 20px rgba(0, 0, 0, 0.4);
   --shadow-pop:   0 12px 40px rgba(0, 0, 0, 0.55);
@@ -118,8 +124,8 @@ html, body {
 .plate-body     { flex: 1; display: flex; min-height: 0; }
 .plate-operate  { width: 272px; background: var(--panel); border-right: 1px solid var(--border); padding: 24px 20px; overflow-y: auto; flex-shrink: 0; }
 .plate-stage    { flex: 1; display: flex; min-width: 0; background: var(--surface); position: relative; }
-.fig-canvas     { flex: 1; min-width: 0; position: relative; background: var(--surface); }
-.plate-read     { width: 280px; background: var(--panel); border-left: 1px solid var(--border); padding: 22px 20px; overflow-y: auto; flex-shrink: 0; display: flex; flex-direction: column; }
+.fig-canvas     { flex: 1; min-width: 0; position: relative; background: var(--surface); overflow: hidden; }
+.plate-read     { width: 300px; background: var(--panel); border-left: 1px solid var(--border); padding: 22px 20px; overflow-y: auto; flex-shrink: 0; display: flex; flex-direction: column; }
 
 /* ═══════════════════════════════════════════════════════════════════
    Shared atoms — used by two or more components
@@ -138,6 +144,139 @@ html, body {
 .seg.full .seg-btn { flex: 1; }
 .seg-btn:hover     { color: var(--text-2); }
 .seg-btn.on        { color: var(--accent); background: var(--surface); box-shadow: 0 1px 3px rgba(0,0,0,0.10); }
+
+/* ── Visibility utilities ───────────────────────────────────────────── */
+.desk-only { display: inline; }
+
+/* ── Sheet handle (mobile only, shown via media query) ──────────────── */
+.sheet-handle {
+  display: none;
+  justify-content: center;
+  align-items: flex-start;
+  padding: 10px 0 4px;
+  flex-shrink: 0;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+.sheet-handle-bar { width: 34px; height: 4px; border-radius: 2px; background: var(--border-mid); }
+
+/* ── Mobile backdrop ────────────────────────────────────────────────── */
+.mob-backdrop {
+  display: none;
+  position: absolute;
+  inset: 0;
+  z-index: 95;
+  background: color-mix(in oklch, var(--bg) 45%, transparent);
+}
+.mob-backdrop.show { display: block; }
+
+/* ── Mobile bottom nav (hidden until mobile breakpoint) ─────────────── */
+.mob-nav { display: none; }
+.mob-badge {
+  display: none;
+  position: absolute;
+  top: 7px;
+  right: calc(50% - 13px);
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--accent);
+}
+.mob-badge.show { display: block; }
+
+/* ═══════════════════════════════════════════════════════════════════
+   TABLET  768–1199 px — narrower panels
+   ═══════════════════════════════════════════════════════════════════ */
+@media (min-width: 768px) and (max-width: 1199px) {
+  .plate-operate { width: 215px; padding: 18px 14px; }
+  .plate-read    { width: 230px; padding: 18px 14px; }
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   MOBILE  < 768 px — bottom-sheet panels, full-screen lattice, bottom nav
+   ═══════════════════════════════════════════════════════════════════ */
+@media (max-width: 767px) {
+  .desk-only { display: none; }
+  /* plate-body: positioning root for absolute children */
+  .plate-body {
+    position: relative;
+    overflow: hidden;
+  }
+
+  /* lattice fills everything except the bottom nav strip */
+  .plate-stage {
+    position: absolute;
+    inset: 0;
+    bottom: 52px;
+  }
+  .fig-canvas { width: 100%; height: 100%; }
+
+  /* side panels become bottom sheets */
+  .plate-operate,
+  .plate-read {
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 52px;
+    width: 100%;
+    max-height: 70dvh;
+    max-height: 70vh;
+    border-radius: 16px 16px 0 0;
+    border: 1px solid var(--border-mid);
+    border-bottom: none;
+    border-right: none;
+    border-left: none;
+    box-shadow: 0 -6px 32px rgba(0, 0, 0, 0.18);
+    transform: translateY(calc(100% + 4px));
+    transition: transform 0.32s var(--ease-out);
+    z-index: 100;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    padding: 0 18px 24px;
+  }
+  .plate-operate.mob-open,
+  .plate-read.mob-open { transform: translateY(0); }
+
+  /* sheet handle visible on mobile */
+  .sheet-handle { display: flex; }
+
+  /* read-foot: let it flow naturally in the sheet */
+  .plate-read  { display: block; }
+  .read-foot   { margin-top: 20px; padding-top: 0; }
+
+  /* mobile nav */
+  .mob-nav {
+    display: flex;
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    height: 52px;
+    background: var(--surface);
+    border-top: 1px solid var(--border);
+    z-index: 110;
+  }
+  .mob-tab {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 3px;
+    background: none;
+    border: none;
+    cursor: pointer;
+    font-family: var(--font-sans);
+    font-size: 10px;
+    color: var(--text-3);
+    padding: 0;
+    position: relative;
+    transition: color var(--dur-fast);
+    touch-action: manipulation;
+  }
+  .mob-tab.on { color: var(--accent); }
+  .mob-tab svg { width: 18px; height: 18px; flex-shrink: 0; }
+}
 
 /* ═══════════════════════════════════════════════════════════════════
    Range + number inputs (base element styling)
