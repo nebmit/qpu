@@ -49,8 +49,8 @@
         try {
             const { dataset, positions } = await loadData((p, recv, total) => {
                 smoothProgress.set(p);
+                bytesReceived = recv;
                 if (total !== null) {
-                    bytesReceived = recv;
                     bytesTotal = total;
                 }
             });
@@ -127,15 +127,19 @@
                         class="text-[11px] font-mono"
                         style="color:var(--text-3)"
                     >
-                        {(bytesReceived / 1e6).toFixed(1)}{bytesTotal
+                        {bytesReceived < 1e6
+                            ? `${Math.round(bytesReceived / 1e3)} KB`
+                            : `${(bytesReceived / 1e6).toFixed(1)} MB`}{bytesTotal
                             ? ` / ${(bytesTotal / 1e6).toFixed(1)} MB`
-                            : " MB"}
+                            : ""}
                     </span>
                     <span
                         class="text-[11px] font-mono"
                         style="color:var(--text-3)"
                     >
-                        {(smoothProgress.current * 100).toFixed(0)}%
+                        {bytesTotal
+                            ? Math.round((bytesReceived / bytesTotal) * 100)
+                            : Math.round(smoothProgress.current * 100)}%
                     </span>
                 </div>
             </div>

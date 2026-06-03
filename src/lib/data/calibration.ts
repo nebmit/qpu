@@ -33,10 +33,33 @@ async function fetchJson<T>(url: string, onProgress?: ProgressCallback): Promise
 }
 
 export async function loadData(onProgress?: ProgressCallback) {
+    let datasetBytes = 0;
+    let datasetTotal: number | null = null;
+    let positionsBytes = 0;
+    let positionsTotal: number | null = null;
+
+    function combined() {
+        const recv = datasetBytes + positionsBytes;
+        const total =
+            datasetTotal !== null && positionsTotal !== null
+                ? datasetTotal + positionsTotal
+                : null;
+        const p = total ? recv / total : datasetTotal ? datasetBytes / datasetTotal * 0.95 : 0;
+        onProgress?.(p, recv, total);
+    }
+
     const [dataset, positions] = await Promise.all([
-        fetchJson<Dataset>('/dataset.json', onProgress ? (p, recv, total) => onProgress(p * 0.95, recv, total) : undefined),
-        fetchJson<Positions>('/positions.json'),
+        fetchJson<Dataset>('/dataset.json', onProgress ? (_, recv, total) => {
+            datasetBytes = recv;
+            datasetTotal = total;
+            combined();
+        } : undefined),
+        fetchJson<Positions>('/positions.json', onProgress ? (_, recv, total) => {
+            positionsBytes = recv;
+            positionsTotal = total;
+            combined();
+        } : undefined),
     ]);
-    onProgress?.(1, 0, null);
+    onProgress?.(1, datasetBytes + positionsBytes, datasetTotal !== null && positionsTotal !== null ? datasetTotal + positionsTotal : null);
     return { dataset, positions };
 }
