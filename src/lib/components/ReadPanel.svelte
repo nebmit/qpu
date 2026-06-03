@@ -3,8 +3,6 @@
     import { DUR, ease, prefersReducedMotion } from "$lib/viz/motion";
     import { dashboardState } from "$lib/state/dashboard.svelte";
     import { metricNodeColor, edgeColor } from "$lib/viz/color";
-    import { metricScore } from "$lib/domain/metrics";
-    import { BASE_POS } from "$lib/domain/lattice";
     import {
         microseconds,
         percent,
@@ -22,10 +20,6 @@
         mobileOpen?: boolean;
         onClose?: () => void;
     }>();
-
-    const SCHEMA_W = 268;
-    const SCHEMA_H = 116;
-    const SCHEMA_PAD = 18;
 
     let nodeLegend = $derived.by(() => {
         const m = dashboardState.metricMode;
@@ -90,89 +84,6 @@
             dashboardState.cluster.length > 0 &&
             requestedSize > dashboardState.cluster.length,
     );
-
-    let schematic = $derived.by(() => {
-        const ids = dashboardState.findFailed
-            ? dashboardState.nearestCluster
-            : dashboardState.cluster;
-        if (!ids.length) return null;
-        const devicePositions =
-            dashboardState.positionsByDevice?.[dashboardState.device];
-        const points = ids
-            .map((id) => {
-                const pos = devicePositions?.[String(id)];
-                if (pos) return { id, x: pos.x, y: pos.y };
-                const base = BASE_POS[id];
-                if (!base) return null;
-                return { id, x: base.col, y: base.row };
-            })
-            .filter(Boolean) as { id: number; x: number; y: number }[];
-        if (!points.length) return null;
-        const xs = points.map((p) => p.x);
-        const ys = points.map((p) => p.y);
-        const minX = Math.min(...xs);
-        const maxX = Math.max(...xs);
-        const minY = Math.min(...ys);
-        const maxY = Math.max(...ys);
-        const spanX = Math.max(1e-6, maxX - minX);
-        const spanY = Math.max(1e-6, maxY - minY);
-        const scale = Math.min(
-            (SCHEMA_W - SCHEMA_PAD * 2) / spanX,
-            (SCHEMA_H - SCHEMA_PAD * 2) / spanY,
-        );
-        const offX = (SCHEMA_W - spanX * scale) / 2;
-        const offY = (SCHEMA_H - spanY * scale) / 2;
-        const coord = new Map(
-            points.map((p) => [
-                p.id,
-                {
-                    x: offX + (p.x - minX) * scale,
-                    y: offY + (p.y - minY) * scale,
-                },
-            ]),
-        );
-        const set = new Set(ids);
-        const edges = dashboardState.filteredEdges
-            .filter((e) => set.has(e.source) && set.has(e.target))
-            .map((e) => {
-                const a = coord.get(e.source);
-                const b = coord.get(e.target);
-                if (!a || !b) return null;
-                return { x1: a.x, y1: a.y, x2: b.x, y2: b.y };
-            })
-            .filter(Boolean) as {
-            x1: number;
-            y1: number;
-            x2: number;
-            y2: number;
-        }[];
-        const nodes = ids
-            .map((id) => {
-                const c = coord.get(id);
-                const q = dashboardState.snap.qubits[id];
-                if (!c || !q) return null;
-                const score = metricScore(
-                    q,
-                    dashboardState.metricMode,
-                    dashboardState.ranges,
-                );
-                return {
-                    id,
-                    x: c.x,
-                    y: c.y,
-                    score,
-                    selected: id === dashboardState.selectedId,
-                };
-            })
-            .filter(Boolean) as {
-            id: number;
-            x: number;
-            y: number;
-            score: number;
-            selected: boolean;
-        }[];
-        return { edges, nodes, width: SCHEMA_W, height: SCHEMA_H };
-    });
 
     function closeDetail() {
         dashboardState.selectedId = null;
@@ -283,63 +194,11 @@
                 </div>
             </div>
 
-            {#if schematic && dashboardState.nearestCluster.length >= 2}
-                <div class="cr-sch in-fail">
-                    <div class="cr-sch-cap">Closest achievable region</div>
-                    <svg
-                        class="cr-sch-svg"
-                        viewBox={`0 0 ${schematic.width} ${schematic.height}`}
-                        width="100%"
-                        height={schematic.height}
-                    >
-                        {#each schematic.edges as e (e.x1 + e.y1 + e.x2 + e.y2)}
-                            <line
-                                x1={e.x1}
-                                y1={e.y1}
-                                x2={e.x2}
-                                y2={e.y2}
-                                stroke="var(--accent)"
-                                stroke-opacity={0.5}
-                                stroke-width={1.4}
-                                stroke-linecap="round"
-                            />
-                        {/each}
-                        {#each schematic.nodes as n (n.id)}
-                            <g
-                                class="sch-node"
-                                onclick={() =>
-                                    (dashboardState.selectedId = n.id)}
-                                style="cursor:pointer"
-                            >
-                                {#if n.selected}
-                                    <circle
-                                        cx={n.x}
-                                        cy={n.y}
-                                        r={8.5}
-                                        fill="none"
-                                        stroke="var(--accent)"
-                                        stroke-width={1.5}
-                                    />
-                                {/if}
-                                <circle
-                                    cx={n.x}
-                                    cy={n.y}
-                                    r={5.4}
-                                    fill={metricNodeColor(n.score)}
-                                    stroke="var(--surface)"
-                                    stroke-width={1.4}
-                                />
-                            </g>
-                        {/each}
-                    </svg>
-                </div>
-            {:else}
-                <p class="cl-fail-p">
+            <p class="cl-fail-p">
                     Only <b>{dashboardState.allowedQubitIds.size} qubits</b>
                     qualify and they don't connect into a usable block under the
                     current filters.
                 </p>
-            {/if}
 
             {#if dashboardState.relaxSuggestions?.candidates.length}
                 <div class="cl-relax-h">Relax one constraint</div>
@@ -408,60 +267,6 @@
                 <span class="cr-topo">{dashboardState.topology}</span>
             </div>
 
-            {#if schematic}
-                <div class="cr-sch">
-                    <div class="cr-sch-cap">
-                        Cluster shape · lifted from lattice
-                    </div>
-                    <svg
-                        class="cr-sch-svg"
-                        viewBox={`0 0 ${schematic.width} ${schematic.height}`}
-                        width="100%"
-                        height={schematic.height}
-                    >
-                        {#each schematic.edges as e (e.x1 + e.y1 + e.x2 + e.y2)}
-                            <line
-                                x1={e.x1}
-                                y1={e.y1}
-                                x2={e.x2}
-                                y2={e.y2}
-                                stroke="var(--accent)"
-                                stroke-opacity={0.5}
-                                stroke-width={1.4}
-                                stroke-linecap="round"
-                            />
-                        {/each}
-                        {#each schematic.nodes as n (n.id)}
-                            <g
-                                class="sch-node"
-                                onclick={() =>
-                                    (dashboardState.selectedId = n.id)}
-                                style="cursor:pointer"
-                            >
-                                {#if n.selected}
-                                    <circle
-                                        cx={n.x}
-                                        cy={n.y}
-                                        r={8.5}
-                                        fill="none"
-                                        stroke="var(--accent)"
-                                        stroke-width={1.5}
-                                    />
-                                {/if}
-                                <circle
-                                    cx={n.x}
-                                    cy={n.y}
-                                    r={5.4}
-                                    fill={metricNodeColor(n.score)}
-                                    stroke="var(--surface)"
-                                    stroke-width={1.4}
-                                />
-                            </g>
-                        {/each}
-                    </svg>
-                </div>
-            {/if}
-
             {#if isPartial}
                 <div class="cr-warn">
                     <svg
@@ -492,7 +297,7 @@
             {/if}
 
             <div class="cr-metrics">
-                {#each [{ l: "T₁", v: microseconds(cs.T1, 0), d: cs.deltaT1 }, { l: "T₂", v: microseconds(cs.T2, 0), d: cs.deltaT2 }, { l: "Readout", v: percent(cs.ro, 2), d: cs.deltaRo }] as row (row.l)}
+                {#each [{ l: "T₁", v: microseconds(cs.T1, 0), d: cs.deltaT1 }, { l: "T₂", v: microseconds(cs.T2, 0), d: cs.deltaT2 }, { l: "Readout err", v: percent(cs.ro, 2), d: cs.deltaRo }, { l: "CX gate err", v: cs.cx != null ? exponential(cs.cx, 2) : "—", d: cs.deltaCx }] as row (row.l)}
                     <div class="cr-mrow">
                         <span class="cr-ml">{row.l}</span>
                         <span class="cr-mv">{row.v}</span>
@@ -516,7 +321,7 @@
                     </div>
                 {/each}
             </div>
-            <div class="cr-vsmed">▲ better than device median</div>
+            <div class="cr-vsmed">vs device median · ▲ = better</div>
 
             <div class="cr-mem">
                 <div class="cr-mem-h">
@@ -639,24 +444,24 @@
         border-bottom: none;
     }
     .pr-l {
-        font-size: 11.5px;
+        font-size: 13px;
         color: var(--text-2);
         white-space: nowrap;
     }
     .pr-v {
-        font-size: 12.5px;
+        font-size: 14px;
         color: var(--text);
         white-space: nowrap;
         font-family: var(--font-mono);
     }
     .pr-qid {
-        font-size: 21px;
+        font-size: 24px;
         color: var(--accent);
         line-height: 1;
         font-family: var(--font-mono);
     }
     .pr-cxh {
-        font-size: 9.5px;
+        font-size: 11px;
         color: var(--text-3);
         letter-spacing: 0.08em;
         text-transform: uppercase;
@@ -675,7 +480,7 @@
 
     /* ═══ Inline colour-scale legend ═══ */
     .leg-inline .lg-label {
-        font-size: 9px;
+        font-size: 10.5px;
         letter-spacing: 0.09em;
         text-transform: uppercase;
         color: var(--text-3);
@@ -690,7 +495,7 @@
     .leg-inline .lg-ends {
         display: flex;
         justify-content: space-between;
-        font-size: 9.5px;
+        font-size: 11px;
         font-family: var(--font-mono);
         color: var(--text-3);
     }
@@ -719,7 +524,7 @@
         display: inline-flex;
         align-items: center;
         gap: 7px;
-        font-size: 10px;
+        font-size: 11.5px;
         letter-spacing: 0.08em;
         text-transform: uppercase;
         color: var(--accent);
@@ -770,14 +575,14 @@
         letter-spacing: -0.02em;
     }
     .cr-of {
-        font-size: 12px;
+        font-size: 14px;
         color: var(--text-3);
         font-family: var(--font-mono);
     }
     .cr-topo {
         margin-left: auto;
         align-self: center;
-        font-size: 10px;
+        font-size: 11.5px;
         letter-spacing: 0.04em;
         text-transform: uppercase;
         color: var(--text-2);
@@ -803,16 +608,16 @@
         border-top: none;
     }
     .cr-ml {
-        font-size: 11.5px;
+        font-size: 13px;
         color: var(--text-2);
     }
     .cr-mv {
-        font-size: 13px;
+        font-size: 14.5px;
         color: var(--text);
         font-family: var(--font-mono);
     }
     .cr-delta {
-        font-size: 10px;
+        font-size: 11.5px;
         font-family: var(--font-mono);
         padding: 1px 6px;
         border-radius: 99px;
@@ -837,7 +642,7 @@
         background: var(--read-bg);
     }
     .cr-vsmed {
-        font-size: 9.5px;
+        font-size: 11px;
         color: var(--text-3);
         text-align: right;
         padding: 6px 16px 0;
@@ -856,14 +661,14 @@
         margin-bottom: 10px;
     }
     .cr-mem-t {
-        font-size: 9.5px;
+        font-size: 11px;
         letter-spacing: 0.07em;
         text-transform: uppercase;
         color: var(--text-3);
         font-weight: 600;
     }
     .cr-mem-hint {
-        font-size: 9.5px;
+        font-size: 11px;
         color: var(--text-3);
     }
     .cr-chips {
@@ -874,8 +679,8 @@
         overflow-y: auto;
     }
     .qchip {
-        font-size: 10.5px;
-        padding: 3px 7px;
+        font-size: 12px;
+        padding: 4px 8px;
         border-radius: 5px;
         border: 1px solid var(--border);
         background: var(--surface);
@@ -912,42 +717,13 @@
         margin-top: 1px;
     }
     .cr-warn-tx {
-        font-size: 11px;
+        font-size: 12.5px;
         line-height: 1.5;
         color: var(--text-2);
     }
     .cr-warn-tx b {
         color: var(--text);
         font-weight: 600;
-    }
-
-    .cr-sch {
-        margin: 2px 16px 14px;
-        padding: 12px 12px 8px;
-        background: var(--read-bg);
-        border: 1px solid var(--border);
-        border-radius: var(--radius-md);
-    }
-    .cr-sch.in-fail {
-        margin: 14px 0 4px;
-    }
-    .cr-sch-cap {
-        font-size: 9px;
-        letter-spacing: 0.08em;
-        text-transform: uppercase;
-        color: var(--text-3);
-        font-weight: 600;
-        margin-bottom: 7px;
-    }
-    .cr-sch-svg {
-        display: block;
-        overflow: visible;
-    }
-    .sch-node circle:last-child {
-        transition: r var(--dur-fast);
-    }
-    .sch-node:hover circle:last-child {
-        r: 6.6;
     }
 
     /* ═══ Failure card ═══ */
@@ -981,12 +757,12 @@
         height: 20px;
     }
     .cl-fail-h {
-        font-size: 14px;
+        font-size: 16px;
         font-weight: 600;
         color: var(--text);
     }
     .cl-fail-sub {
-        font-size: 11px;
+        font-size: 12.5px;
         color: var(--text-3);
         margin-top: 2px;
     }
@@ -996,7 +772,7 @@
         font-family: var(--font-mono);
     }
     .cl-fail-p {
-        font-size: 11.5px;
+        font-size: 13px;
         line-height: 1.6;
         color: var(--text-3);
         margin: 14px 0 4px;
@@ -1009,7 +785,7 @@
 
     .cl-relax-h {
         text-align: left;
-        font-size: 9.5px;
+        font-size: 11px;
         letter-spacing: 0.07em;
         text-transform: uppercase;
         color: var(--text-3);
@@ -1041,13 +817,13 @@
         background: var(--accent-surface);
     }
     .cl-relax-l {
-        font-size: 12px;
+        font-size: 13.5px;
         color: var(--text);
         font-family: var(--font-mono);
         white-space: nowrap;
     }
     .cl-relax-g {
-        font-size: 11px;
+        font-size: 12.5px;
         color: var(--pos);
         font-weight: 600;
         font-family: var(--font-mono);
@@ -1066,9 +842,9 @@
         align-items: center;
         justify-content: center;
         gap: 7px;
-        padding: 9px 12px;
+        padding: 10px 12px;
         border-radius: var(--radius-sm);
-        font-size: 12px;
+        font-size: 13.5px;
         font-weight: 500;
         font-family: var(--font-sans);
         cursor: pointer;
@@ -1084,16 +860,6 @@
         box-shadow: 0 3px 14px
             color-mix(in oklch, var(--accent) 38%, transparent);
     }
-    .cl-fail-btn.ghost {
-        background: transparent;
-        border: 1px solid var(--border-mid);
-        color: var(--text-2);
-    }
-    .cl-fail-btn.ghost:hover {
-        border-color: var(--accent-border);
-        color: var(--text);
-        background: var(--accent-surface);
-    }
     .cl-fail-btn svg {
         width: 13px;
         height: 13px;
@@ -1108,7 +874,7 @@
         border: none;
         color: var(--text-3);
         cursor: pointer;
-        font-size: 11px;
+        font-size: 12.5px;
         font-family: var(--font-sans);
         padding: 0;
         margin-bottom: 13px;
@@ -1125,7 +891,7 @@
         margin-bottom: 12px;
     }
     .mem-badge {
-        font-size: 9px;
+        font-size: 10.5px;
         letter-spacing: 0.05em;
         text-transform: uppercase;
         font-weight: 600;
@@ -1144,7 +910,7 @@
         border: 1px solid var(--border);
     }
     .insp-empty {
-        font-size: 12px;
+        font-size: 13.5px;
         color: var(--text-3);
         line-height: 1.7;
     }

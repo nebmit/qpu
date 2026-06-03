@@ -120,9 +120,13 @@ export class DashboardState {
         if (!this.cluster.length) return null;
         const cq = this.cluster.map((id) => this.snap.qubits[id]).filter(Boolean);
         if (!cq.length) return null;
+        const ce = this.filteredEdges.filter(
+            (e) => this.cluster.includes(e.source) && this.cluster.includes(e.target)
+        );
         const T1 = avg(cq.map((q) => q.T1));
         const T2 = avg(cq.map((q) => q.T2));
         const ro = avg(cq.map((q) => q.readout_error));
+        const cx = ce.length ? avg(ce.map((e) => e.cx_error)) : null;
 
         // Compare a cluster metric to the device median; a ±2% dead-zone is "flat".
         // `dir` is "up" when the cluster is better than median (accounting for
@@ -144,9 +148,11 @@ export class DashboardState {
             T1,
             T2,
             ro,
+            cx,
             deltaT1: delta(T1, med.T1, false),
             deltaT2: delta(T2, med.T2, false),
-            deltaRo: delta(ro, med.ro, true)
+            deltaRo: delta(ro, med.ro, true),
+            deltaCx: delta(cx, med.cx, true)
         };
     });
 
