@@ -7,6 +7,9 @@ import type { UiEdge } from '$lib/types';
 
 export const TOTAL_QUBITS = 156;
 
+export const edgeKey = (a: number, b: number): string =>
+    `${Math.min(a, b)}-${Math.max(a, b)}`;
+
 function buildLayout() {
     const pos = [];
     let id = 0;
@@ -63,5 +66,5 @@ export const BASE_EDGES = buildEdges(BASE_POS);
 
 export function buildBaseEdges(coupling?: [number, number][]): UiEdge[] {
     const edges = coupling ? buildEdgesFromCoupling(coupling) : BASE_EDGES;
-    return edges.map((e) => ({ ...e, cx_error: null }));
+    return edges.map((e) => ({ ...e, twoq_error: null }));
 }

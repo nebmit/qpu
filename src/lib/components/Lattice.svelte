@@ -10,6 +10,7 @@
     import { extent, scaleLinear } from "d3";
     import { dashboardState } from "$lib/state/dashboard.svelte";
     import { metricScore, edgeScore } from "$lib/domain/metrics";
+    import { edgeKey } from "$lib/domain/lattice";
     import { metricNodeColor, edgeColor } from "$lib/viz/color";
     import { SvelteMap, SvelteSet } from "svelte/reactivity";
 
@@ -118,9 +119,6 @@
     let revealTimers: NodeJS.Timeout[] = [];
     let pingKey = 0;
 
-    const edgeKey = (e: { source: number; target: number }) =>
-        `${Math.min(e.source, e.target)}-${Math.max(e.source, e.target)}`;
-
     let clSet = $derived(
         new Set(
             dashboardState.findFailed
@@ -129,7 +127,7 @@
         ),
     );
     let filteredEdgeKeys = $derived(
-        new Set(dashboardState.filteredEdges.map(edgeKey)),
+        new Set(dashboardState.filteredEdges.map((e) => edgeKey(e.source, e.target))),
     );
 
     let dimNodeOpacity = $derived.by(() => {
@@ -319,8 +317,8 @@
         </defs>
         <g>
             <!-- Dead edges (behind live content) -->
-            {#each dashboardState.snap.edges as e (edgeKey(e))}
-                {#if !filteredEdgeKeys.has(edgeKey(e))}
+            {#each dashboardState.snap.edges as e (edgeKey(e.source, e.target))}
+                {#if !filteredEdgeKeys.has(edgeKey(e.source, e.target))}
                     {@const a = xy.get(e.source)}
                     {@const b = xy.get(e.target)}
                     {#if a && b}
@@ -358,14 +356,14 @@
             {/each}
 
             <!-- Live edges -->
-            {#each dashboardState.filteredEdges as e (edgeKey(e))}
+            {#each dashboardState.filteredEdges as e (edgeKey(e.source, e.target))}
                 {@const a = xy.get(e.source)}
                 {@const b = xy.get(e.target)}
                 {#if a && b}
                     {@const inCl = clSet.has(e.source) && clSet.has(e.target)}
                     {@const hasErr =
-                        typeof e.cx_error === "number" &&
-                        Number.isFinite(e.cx_error)}
+                        typeof e.twoq_error === "number" &&
+                        Number.isFinite(e.twoq_error)}
                     {@const t = edgeScore(e, dashboardState.ranges)}
                     {@const baseOpacity = hasErr ? 0.45 : 0.2}
                     {@const isActive =

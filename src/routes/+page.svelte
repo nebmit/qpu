@@ -55,7 +55,6 @@
                 }
             });
             positionsByDevice = positions;
-            dashboardState.setPositions(positions);
             dashboardState.applyDataset(dataset);
             await smoothProgress.set(1);
             loadStatus = "transitioning";

@@ -9,7 +9,7 @@ export const QPU_DEVICES = ['ibm_fez', 'ibm_kingston', 'ibm_marrakesh'];
 export type ProgressCallback = (pct: number, received: number, total: number | null) => void;
 
 async function fetchJson<T>(url: string, onProgress?: ProgressCallback): Promise<T> {
-    const response = await fetch(url, { signal: AbortSignal.timeout(30_000) });
+    const response = await fetch(url);
     if (!response.ok) throw new Error(`HTTP ${response.status} ${response.statusText}`);
     if (!onProgress || !response.body) return response.json() as Promise<T>;
 

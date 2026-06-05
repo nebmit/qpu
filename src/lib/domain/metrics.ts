@@ -1,10 +1,5 @@
 import type { UiQubit, UiEdge, MetricRanges, MetricMode } from '$lib/types';
 
-// Metrics the scorer can evaluate. A superset of the user-selectable
-// `MetricMode`: `sx` (single-qubit gate error) feeds cluster scoring but is not
-// exposed as a lattice colour mode.
-export type ScoreMetric = MetricMode | 'sx';
-
 // Node metrics a user can colour the lattice by, with their display labels.
 // Single source of truth for the metric selector (Topbar) and legend.
 export const METRIC_OPTIONS: { value: MetricMode; label: string }[] = [
@@ -25,14 +20,13 @@ export function computeRanges(qubits: UiQubit[], edges: UiEdge[]): MetricRanges 
         T1: range(qubits.map((q) => q.T1), [0, 1]),
         T2: range(qubits.map((q) => q.T2), [0, 1]),
         readout: range(qubits.map((q) => q.readout_error), [0, 0.1]),
-        sx: range(qubits.map((q) => q.sx_error), [0, 0.01]),
-        cx: range(edges.map((e) => e.cx_error), [0, 0.01])
+        twoq: range(edges.map((e) => e.twoq_error), [0, 0.01])
     };
 }
 
 // Per-qubit quality in [0,1] for one metric, higher = better. Error metrics are
 // inverted so low error scores high. Missing values score a neutral 0.5.
-export function metricScore(q: UiQubit, mode: ScoreMetric, R: MetricRanges): number {
+export function metricScore(q: UiQubit, mode: MetricMode, R: MetricRanges): number {
     switch (mode) {
         case 'T1':
             if (q.T1 == null) return 0.5;
@@ -43,17 +37,14 @@ export function metricScore(q: UiQubit, mode: ScoreMetric, R: MetricRanges): num
         case 'readout':
             if (q.readout_error == null) return 0.5;
             return 1 - (q.readout_error - R.readout[0]) / (R.readout[1] - R.readout[0] + 1e-9);
-        case 'sx':
-            if (q.sx_error == null) return 0.5;
-            return 1 - (q.sx_error - R.sx[0]) / (R.sx[1] - R.sx[0] + 1e-9);
         default:
             return 0.5;
     }
 }
 
-// CX-edge quality in [0,1], higher = better (lower error). Unmeasured edges
+// Two-qubit gate edge quality in [0,1], higher = better (lower error). Unmeasured edges
 // score 0 here; the cluster finder treats them more leniently.
 export function edgeScore(e: UiEdge, R: MetricRanges): number {
-    if (typeof e.cx_error !== 'number' || !Number.isFinite(e.cx_error)) return 0;
-    return 1 - (e.cx_error - R.cx[0]) / (R.cx[1] - R.cx[0] + 1e-9);
+    if (typeof e.twoq_error !== 'number' || !Number.isFinite(e.twoq_error)) return 0;
+    return 1 - (e.twoq_error - R.twoq[0]) / (R.twoq[1] - R.twoq[0] + 1e-9);
 }

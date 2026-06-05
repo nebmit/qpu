@@ -16,7 +16,7 @@ export type UiQubit = {
 export type UiEdge = {
     source: number;
     target: number;
-    cx_error: number | null;
+    twoq_error: number | null;
 };
 
 export type UiSnapshot = {
@@ -30,8 +30,7 @@ export type MetricRanges = {
     T1: [number, number];
     T2: [number, number];
     readout: [number, number];
-    sx: [number, number];
-    cx: [number, number];
+    twoq: [number, number];
 };
 
 // Node metric a user can colour the lattice by. A subset of the metrics the

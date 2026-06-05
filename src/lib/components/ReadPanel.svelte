@@ -49,8 +49,8 @@
     let edgeLegend = $derived.by(() => {
         const r = dashboardState.ranges;
         return {
-            lo: `${(r.cx[0] * 100).toFixed(2)}%`,
-            hi: `${(r.cx[1] * 100).toFixed(2)}%`,
+            lo: `${(r.twoq[0] * 100).toFixed(2)}%`,
+            hi: `${(r.twoq[1] * 100).toFixed(2)}%`,
         };
     });
 
@@ -153,7 +153,7 @@
 
             {#if connEdges.length > 0}
                 <div class="pr-cxh">
-                    CX gate · {connEdges.length} link{connEdges.length !== 1
+                    2Q gate · {connEdges.length} link{connEdges.length !== 1
                         ? "s"
                         : ""}
                 </div>
@@ -161,7 +161,7 @@
                     {@const nb = e.source === inspectedId ? e.target : e.source}
                     <div class="pr-row">
                         <span class="pr-l font-mono">↔ Q{nb}</span>
-                        <span class="pr-v">{exponential(e.cx_error, 2)}</span>
+                        <span class="pr-v">{exponential(e.twoq_error, 2)}</span>
                     </div>
                 {/each}
             {/if}
@@ -297,7 +297,7 @@
             {/if}
 
             <div class="cr-metrics">
-                {#each [{ l: "T₁", v: microseconds(cs.T1, 0), d: cs.deltaT1 }, { l: "T₂", v: microseconds(cs.T2, 0), d: cs.deltaT2 }, { l: "Readout err", v: percent(cs.ro, 2), d: cs.deltaRo }, { l: "CX gate err", v: cs.cx != null ? exponential(cs.cx, 2) : "—", d: cs.deltaCx }] as row (row.l)}
+                {#each [{ l: "T₁", v: microseconds(cs.T1, 0), d: cs.deltaT1 }, { l: "T₂", v: microseconds(cs.T2, 0), d: cs.deltaT2 }, { l: "Readout err", v: percent(cs.ro, 2), d: cs.deltaRo }, { l: "2Q gate err", v: cs.twoq != null ? exponential(cs.twoq, 2) : "—", d: cs.deltaTwoq }] as row (row.l)}
                     <div class="cr-mrow">
                         <span class="cr-ml">{row.l}</span>
                         <span class="cr-mv">{row.v}</span>
@@ -380,8 +380,8 @@
             <span class="pr-v">{percent(dashboardState.medians.ro, 2)}</span>
         </div>
         <div class="pr-row">
-            <span class="pr-l">CX gate</span>
-            <span class="pr-v">{exponential(dashboardState.medians.cx, 2)}</span
+            <span class="pr-l">2Q gate</span>
+            <span class="pr-v">{exponential(dashboardState.medians.twoq, 2)}</span
             >
         </div>
         <div class="pr-row">
@@ -415,7 +415,7 @@
                     </div>
                 </div>
                 <div class="lg-pair">
-                    <div class="lg-label">CX gate error · edges</div>
+                    <div class="lg-label">2Q gate error · edges</div>
                     <div
                         class="lg-bar"
                         style="background: linear-gradient(to right, {EDGE_LO}, {EDGE_HI})"

@@ -14,7 +14,7 @@ import {
     type Topology
 } from '$lib/domain/cluster';
 import { QPU_DEVICES } from '$lib/data/calibration';
-import type { Dataset, Positions, UiEdge, UiSnapshot, MetricMode, ClusterDelta } from '$lib/types';
+import type { Dataset, UiEdge, UiSnapshot, MetricMode, ClusterDelta } from '$lib/types';
 
 /**
  * Single reactive store backing the dashboard. Holds user-controlled inputs and
@@ -31,7 +31,7 @@ export class DashboardState {
     metricMode = $state<MetricMode>('readout');
     clusterSize = $state(12);
     topology = $state<Topology>('compact');
-    errorCutoffs = $state({ readoutPct: 12, cxPct: 4 });
+    errorCutoffs = $state({ readoutPct: 12, twoqPct: 4 });
     coherenceCutoffs = $state({ minT1: 100, minT2: 50 });
 
     // ── Selection + cluster result ──────────────────────────────────────
@@ -48,7 +48,6 @@ export class DashboardState {
     totalQubits = $state(TOTAL_QUBITS);
     baseEdgesByDevice = $state<Record<string, UiEdge[]>>({});
     snapshotsByDevice = $state<Record<string, UiSnapshot[]>>({});
-    positionsByDevice = $state<Positions | null>(null);
 
     // ── Derived: active snapshot + filtering ────────────────────────────
     connRules = $derived(topoToRules(this.clusterSize, this.topology));
@@ -63,27 +62,15 @@ export class DashboardState {
         return list[idx];
     });
 
-    allowedQubitIds = $derived.by(() => {
-        const maxReadout = this.errorCutoffs.readoutPct / 100;
-        const { minT1, minT2 } = this.coherenceCutoffs;
-        const ids = new SvelteSet<number>();
-        for (const q of this.snap.qubits) {
-            if (!q) continue;
-            const roOk = typeof q.readout_error !== 'number' || q.readout_error <= maxReadout;
-            const t1Ok = typeof q.T1 !== 'number' || q.T1 >= minT1;
-            const t2Ok = typeof q.T2 !== 'number' || q.T2 >= minT2;
-            if (roOk && t1Ok && t2Ok) ids.add(q.id);
-        }
-        return ids;
-    });
+    allowedQubitIds = $derived(new SvelteSet(qualifyQubits(this.clusterFilters(), this.snap.qubits)));
 
     filteredQubits = $derived.by(() => this.snap.qubits.filter((q) => this.allowedQubitIds.has(q.id)));
 
     filteredEdges = $derived.by(() => {
-        const maxCx = this.errorCutoffs.cxPct / 100;
+        const maxTwoq = this.errorCutoffs.twoqPct / 100;
         return this.snap.edges.filter((e) => {
             if (!this.allowedQubitIds.has(e.source) || !this.allowedQubitIds.has(e.target)) return false;
-            return typeof e.cx_error !== 'number' || e.cx_error <= maxCx;
+            return typeof e.twoq_error !== 'number' || e.twoq_error <= maxTwoq;
         });
     });
 
@@ -99,7 +86,7 @@ export class DashboardState {
             T1: avg(q.map((x) => x.T1)),
             T2: avg(q.map((x) => x.T2)),
             ro: avg(q.map((x) => x.readout_error)),
-            cx: avg(edges.map((e) => e.cx_error)),
+            twoq: avg(edges.map((e) => e.twoq_error)),
             qubitsCount: q.length,
             edgesCount: edges.length
         };
@@ -112,7 +99,7 @@ export class DashboardState {
             T1: median(q.map((x) => x.T1)),
             T2: median(q.map((x) => x.T2)),
             ro: median(q.map((x) => x.readout_error)),
-            cx: median(edges.map((e) => e.cx_error))
+            twoq: median(edges.map((e) => e.twoq_error))
         };
     });
 
@@ -120,13 +107,14 @@ export class DashboardState {
         if (!this.cluster.length) return null;
         const cq = this.cluster.map((id) => this.snap.qubits[id]).filter(Boolean);
         if (!cq.length) return null;
+        const clSet = new Set(this.cluster);
         const ce = this.filteredEdges.filter(
-            (e) => this.cluster.includes(e.source) && this.cluster.includes(e.target)
+            (e) => clSet.has(e.source) && clSet.has(e.target)
         );
         const T1 = avg(cq.map((q) => q.T1));
         const T2 = avg(cq.map((q) => q.T2));
         const ro = avg(cq.map((q) => q.readout_error));
-        const cx = ce.length ? avg(ce.map((e) => e.cx_error)) : null;
+        const twoq = ce.length ? avg(ce.map((e) => e.twoq_error)) : null;
 
         // Compare a cluster metric to the device median; a ±2% dead-zone is "flat".
         // `dir` is "up" when the cluster is better than median (accounting for
@@ -148,11 +136,11 @@ export class DashboardState {
             T1,
             T2,
             ro,
-            cx,
+            twoq,
             deltaT1: delta(T1, med.T1, false),
             deltaT2: delta(T2, med.T2, false),
             deltaRo: delta(ro, med.ro, true),
-            deltaCx: delta(cx, med.cx, true)
+            deltaTwoq: delta(twoq, med.twoq, true)
         };
     });
 
@@ -170,7 +158,7 @@ export class DashboardState {
     clusterFilters(): ClusterFilters {
         return {
             readoutPct: this.errorCutoffs.readoutPct,
-            cxPct: this.errorCutoffs.cxPct,
+            twoqPct: this.errorCutoffs.twoqPct,
             minT1: this.coherenceCutoffs.minT1,
             minT2: this.coherenceCutoffs.minT2
         };
@@ -178,22 +166,17 @@ export class DashboardState {
 
     applyClusterFilters(filters: ClusterFilters) {
         this.errorCutoffs.readoutPct = filters.readoutPct;
-        this.errorCutoffs.cxPct = filters.cxPct;
+        this.errorCutoffs.twoqPct = filters.twoqPct;
         this.coherenceCutoffs.minT1 = filters.minT1;
         this.coherenceCutoffs.minT2 = filters.minT2;
     }
 
-    setPositions(positions: Positions) {
-        this.positionsByDevice = positions;
-    }
-
     runFindCluster() {
-        const allowed = new SvelteSet(this.allowedQubitIds);
         const result = findCluster(
             this.connRules,
             this.snap.qubits,
             this.filteredEdges,
-            allowed
+            this.allowedQubitIds
         );
         this.clusterRequested = result.requested;
         this.clusterError = null;
@@ -212,7 +195,7 @@ export class DashboardState {
             this.nearestCluster = largestComponent(
                 qualified,
                 this.snap.edges,
-                filters.cxPct / 100
+                filters.twoqPct / 100
             );
             this.relaxSuggestions = predictRelaxations(
                 filters,

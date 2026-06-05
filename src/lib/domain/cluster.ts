@@ -1,14 +1,13 @@
 import type { UiQubit, UiEdge } from '$lib/types';
 import { computeRanges, metricScore, edgeScore } from '$lib/domain/metrics';
+import { edgeKey } from '$lib/domain/lattice';
 
 const CLUSTER_SEED_CANDIDATES = 14;
 
-// findCluster scoring weights. Node-metric weights blend the four normalized
+// findCluster scoring weights. Node-metric weights blend three normalized
 // per-qubit metrics into a single quality (sum = 1). The growth blend balances
-// node quality against CX-edge quality when deciding which neighbour to add and
-// when ranking finished clusters — so 2-qubit gate error meaningfully steers the
-// selection alongside the per-qubit sx gate error.
-const NODE_WEIGHTS = { readout: 0.3, sx: 0.2, T1: 0.25, T2: 0.25 };
+// node quality against 2Q-edge quality when deciding which neighbour to add.
+const NODE_WEIGHTS = { readout: 0.4, T1: 0.3, T2: 0.3 };
 const W_NODE = 0.6;
 const W_EDGE = 0.4;
 // Soft topology nudges, small relative to the [0,1] quality terms.
@@ -22,7 +21,7 @@ export type Topology = 'compact' | 'linear' | 'branched';
 
 export type ClusterFilters = {
     readoutPct: number;
-    cxPct: number;
+    twoqPct: number;
     minT1: number;
     minT2: number;
 };
@@ -47,6 +46,51 @@ export type ClusterResult = {
     maxComponent: number;
     allowedCount: number;
 };
+
+// Build adjacency list for a set of allowed nodes. Optionally filters edges
+// whose twoq_error exceeds a ceiling (used by largestComponent for error-aware routing).
+function buildAdj(
+    allowed: Set<number>,
+    edges: UiEdge[],
+    maxTwoqError?: number
+): Map<number, number[]> {
+    const adj = new Map<number, number[]>();
+    for (const id of allowed) adj.set(id, []);
+    for (const e of edges) {
+        if (!allowed.has(e.source) || !allowed.has(e.target)) continue;
+        if (maxTwoqError !== undefined && typeof e.twoq_error === 'number' && e.twoq_error > maxTwoqError) continue;
+        adj.get(e.source)!.push(e.target);
+        adj.get(e.target)!.push(e.source);
+    }
+    return adj;
+}
+
+// Flood-fill all components. Returns per-node component size and the largest
+// component's node list, so callers can pick whichever they need.
+function analyzeComponents(adj: Map<number, number[]>): {
+    sizeByNode: Map<number, number>;
+    largest: number[];
+} {
+    const sizeByNode = new Map<number, number>();
+    const seen = new Set<number>();
+    let largest: number[] = [];
+    for (const start of adj.keys()) {
+        if (seen.has(start)) continue;
+        const comp: number[] = [];
+        const stack = [start];
+        seen.add(start);
+        while (stack.length) {
+            const cur = stack.pop()!;
+            comp.push(cur);
+            for (const nb of adj.get(cur)!) {
+                if (!seen.has(nb)) { seen.add(nb); stack.push(nb); }
+            }
+        }
+        for (const id of comp) sizeByNode.set(id, comp.length);
+        if (comp.length > largest.length) largest = comp;
+    }
+    return { sizeByNode, largest };
+}
 
 export const TOPOLOGIES: { value: Topology; label: string }[] = [
     { value: 'compact', label: 'Compact' },
@@ -76,48 +120,19 @@ export function findCluster(
 ): ClusterResult {
     const allowed = allowedIds || new Set(qubits.map((q) => q.id));
     const byId = new Map(qubits.map((q) => [q.id, q]));
-    const adj = new Map<number, number[]>();
-    for (const id of allowed) adj.set(id, []);
-    edges.forEach((e) => {
-        if (!allowed.has(e.source) || !allowed.has(e.target)) return;
-        adj.get(e.source)?.push(e.target);
-        adj.get(e.target)?.push(e.source);
-    });
+    const adj = buildAdj(allowed, edges);
     const deg = new Map<number, number>();
-    for (const id of allowed) deg.set(id, (adj.get(id) || []).length);
+    for (const id of allowed) deg.set(id, adj.get(id)!.length);
 
     const total = (connRules.endpoint || 0) + (connRules.chain || 0) + (connRules.junction || 0);
     if (total === 0) {
         return { cluster: [], requested: 0, maxComponent: 0, allowedCount: allowed.size };
     }
     const ids = [...allowed];
-    // Cluster size is the request, but we allow partial results if the
-    // qualifying pool is smaller (the UI will warn about partials).
     const needed = Math.min(total, ids.length);
 
-    // Connected components of the filtered graph. A cluster of `needed` qubits
-    // can only live inside a component with at least that many nodes.
-    const componentSize = new Map<number, number>();
-    const seenComp = new Set<number>();
-    let maxComponent = 0;
-    for (const start of ids) {
-        if (seenComp.has(start)) continue;
-        const comp: number[] = [];
-        const stack = [start];
-        seenComp.add(start);
-        while (stack.length) {
-            const cur = stack.pop()!;
-            comp.push(cur);
-            for (const nb of adj.get(cur) || []) {
-                if (!seenComp.has(nb)) {
-                    seenComp.add(nb);
-                    stack.push(nb);
-                }
-            }
-        }
-        for (const id of comp) componentSize.set(id, comp.length);
-        if (comp.length > maxComponent) maxComponent = comp.length;
-    }
+    const { sizeByNode: componentSize, largest: largestComp } = analyzeComponents(adj);
+    const maxComponent = largestComp.length;
 
     if (maxComponent < needed) {
         return { cluster: [], requested: total, maxComponent, allowedCount: ids.length };
@@ -134,26 +149,22 @@ export function findCluster(
     const allowedEdges = edges.filter((e) => allowed.has(e.source) && allowed.has(e.target));
     const R = computeRanges(allowedQubits, allowedEdges);
 
-    // Per-qubit quality in [0,1], higher = better. Missing metrics score a
-    // neutral 0.5 via metricScore.
     const nodeQuality = (id: number) => {
         const q = byId.get(id);
         if (!q) return 0;
         return (
             NODE_WEIGHTS.readout * metricScore(q, 'readout', R) +
-            NODE_WEIGHTS.sx * metricScore(q, 'sx', R) +
             NODE_WEIGHTS.T1 * metricScore(q, 'T1', R) +
             NODE_WEIGHTS.T2 * metricScore(q, 'T2', R)
         );
     };
 
-    // CX-edge quality in [0,1], higher = better. Unmeasured links are neutral
+    // Two-qubit gate edge quality in [0,1], higher = better. Unmeasured links are neutral
     // (0.5) rather than worst, so missing data doesn't unfairly reject an edge.
     const edgeQuality = (e: UiEdge) =>
-        typeof e.cx_error === 'number' && Number.isFinite(e.cx_error) ? edgeScore(e, R) : 0.5;
+        typeof e.twoq_error === 'number' && Number.isFinite(e.twoq_error) ? edgeScore(e, R) : 0.5;
 
     // Precompute edge quality by qubit-pair key for O(1) lookup during growth.
-    const edgeKey = (a: number, b: number) => `${Math.min(a, b)}-${Math.max(a, b)}`;
     const linkQ = new Map<string, number>();
     for (const e of allowedEdges) linkQ.set(edgeKey(e.source, e.target), edgeQuality(e));
 
@@ -279,36 +290,11 @@ export function qualifyQubits(filters: ClusterFilters, qubits: UiQubit[]) {
 export function largestComponent(
     allowed: Set<number>,
     edges: UiEdge[],
-    maxCx: number
+    maxTwoq: number
 ): number[] {
-    const adj = new Map<number, number[]>();
-    for (const id of allowed) adj.set(id, []);
-    for (const e of edges) {
-        if (!allowed.has(e.source) || !allowed.has(e.target)) continue;
-        if (typeof e.cx_error === 'number' && e.cx_error > maxCx) continue;
-        adj.get(e.source)?.push(e.target);
-        adj.get(e.target)?.push(e.source);
-    }
-    const seen = new Set<number>();
-    let best: number[] = [];
-    for (const id of allowed) {
-        if (seen.has(id)) continue;
-        const comp: number[] = [];
-        const stack = [id];
-        seen.add(id);
-        while (stack.length) {
-            const cur = stack.pop()!;
-            comp.push(cur);
-            for (const nb of adj.get(cur) || []) {
-                if (!seen.has(nb)) {
-                    seen.add(nb);
-                    stack.push(nb);
-                }
-            }
-        }
-        if (comp.length > best.length) best = comp;
-    }
-    return best;
+    const adj = buildAdj(allowed, edges, maxTwoq);
+    const { largest } = analyzeComponents(adj);
+    return largest;
 }
 
 export function predictRelaxations(
@@ -317,11 +303,11 @@ export function predictRelaxations(
     edges: UiEdge[]
 ): RelaxSuggestions {
     const baseAllowed = qualifyQubits(filters, qubits);
-    const baseComp = largestComponent(baseAllowed, edges, filters.cxPct / 100).length;
+    const baseComp = largestComponent(baseAllowed, edges, filters.twoqPct / 100).length;
     const candidates: RelaxCandidate[] = [];
     const mk = (key: string, label: string, nf: ClusterFilters) => {
         const allowed = qualifyQubits(nf, qubits);
-        const comp = largestComponent(allowed, edges, nf.cxPct / 100).length;
+        const comp = largestComponent(allowed, edges, nf.twoqPct / 100).length;
         const addQ = allowed.size - baseAllowed.size;
         const addC = comp - baseComp;
         if (addQ > 0 || addC > 0) candidates.push({ key, label, addQ, comp, filters: nf });
@@ -338,9 +324,9 @@ export function predictRelaxations(
         ...filters,
         minT2: Math.max(0, filters.minT2 - 30)
     });
-    mk('cxPct', `CX ≤ ${Math.min(100, filters.cxPct + 2).toFixed(0)}%`, {
+    mk('twoqPct', `2Q ≤ ${Math.min(100, filters.twoqPct + 2).toFixed(0)}%`, {
         ...filters,
-        cxPct: Math.min(100, filters.cxPct + 2)
+        twoqPct: Math.min(100, filters.twoqPct + 2)
     });
     candidates.sort((a, b) => b.comp - a.comp || b.addQ - a.addQ);
     return {

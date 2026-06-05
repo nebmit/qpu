@@ -129,9 +129,9 @@
 
         <div class="sld">
             <div class="sld-top">
-                <span class="sld-lbl">CX gate error</span>
+                <span class="sld-lbl">2Q gate error</span>
                 <span class="sld-val"
-                    >{dashboardState.errorCutoffs.cxPct.toFixed(1)}<i>%</i
+                    >{dashboardState.errorCutoffs.twoqPct.toFixed(1)}<i>%</i
                     ></span
                 >
             </div>
@@ -140,7 +140,7 @@
                 min="0"
                 max="100"
                 step="0.1"
-                bind:value={dashboardState.errorCutoffs.cxPct}
+                bind:value={dashboardState.errorCutoffs.twoqPct}
             />
         </div>
 

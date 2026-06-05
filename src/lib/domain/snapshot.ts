@@ -1,4 +1,5 @@
 import type { Snapshot, UiQubit, UiEdge, UiSnapshot } from '$lib/types';
+import { edgeKey } from '$lib/domain/lattice';
 
 // Adapts a raw wire `Snapshot` into the `UiSnapshot` view-model: indexes qubits
 // by id, converts coherence times to microseconds, and averages per-edge gate
@@ -34,39 +35,22 @@ export function buildUiSnapshot(snap: Snapshot, baseEdges: UiEdge[], totalQubits
         target.p10 = typeof q.p10 === 'number' ? q.p10 : null;
     });
 
-    const edgeStats = new Map<
-        string,
-        { cxSum: number; cxCount: number; anySum: number; anyCount: number }
-    >();
+    const edgeStats = new Map<string, { sum: number; count: number }>();
     for (const g of snap.gates || []) {
         if (!g || !Array.isArray(g.qubits) || g.qubits.length !== 2) continue;
         const err = typeof g.error === 'number' ? g.error : null;
         if (err == null || !Number.isFinite(err)) continue;
-        const a = Math.min(g.qubits[0], g.qubits[1]);
-        const b = Math.max(g.qubits[0], g.qubits[1]);
-        const key = `${a}-${b}`;
-        const entry = edgeStats.get(key) || { cxSum: 0, cxCount: 0, anySum: 0, anyCount: 0 };
-        const name = typeof g.gate === 'string' ? g.gate.toLowerCase() : '';
-        if (name === 'cx') {
-            entry.cxSum += err;
-            entry.cxCount += 1;
-        } else {
-            entry.anySum += err;
-            entry.anyCount += 1;
-        }
+        const key = edgeKey(g.qubits[0], g.qubits[1]);
+        const entry = edgeStats.get(key) || { sum: 0, count: 0 };
+        entry.sum += err;
+        entry.count += 1;
         edgeStats.set(key, entry);
     }
 
     const edges = baseEdges.map((e) => {
-        const key = `${Math.min(e.source, e.target)}-${Math.max(e.source, e.target)}`;
-        const stats = edgeStats.get(key);
-        let cx_error: number | null = null;
-        if (stats) {
-            cx_error = stats.cxCount > 0
-                ? stats.cxSum / stats.cxCount
-                : stats.anyCount > 0 ? stats.anySum / stats.anyCount : null;
-        }
-        return { ...e, cx_error };
+        const stats = edgeStats.get(edgeKey(e.source, e.target));
+        const twoq_error = stats && stats.count > 0 ? stats.sum / stats.count : null;
+        return { ...e, twoq_error };
     });
 
     return { date: snap.t, timestamp: snap.ts, qubits, edges };
