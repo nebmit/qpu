@@ -3,7 +3,8 @@ import type { Dataset, Positions } from '$lib/types';
 // Network layer: fetches the calibration dataset and lattice positions from the
 // static endpoints, with optional streamed download progress.
 
-// Backends exposed in the device picker.
+// Backends shown in the device picker before the dataset loads; once loaded,
+// the picker is driven by `dataset.meta.backends` instead.
 export const QPU_DEVICES = ['ibm_fez', 'ibm_kingston', 'ibm_marrakesh'];
 
 export type ProgressCallback = (pct: number, received: number, total: number | null) => void;
@@ -47,7 +48,8 @@ export async function loadData(onProgress?: ProgressCallback) {
                 ? datasetTotal + positionsTotal
                 : null;
         const p = total ? recv / total : datasetTotal ? datasetBytes / datasetTotal * 0.95 : 0;
-        onProgress?.(p, recv, total);
+        // Defensive clamp: totals are best-effort, so never report > 100%.
+        onProgress?.(Math.min(1, p), recv, total);
     }
 
     const [dataset, positions] = await Promise.all([

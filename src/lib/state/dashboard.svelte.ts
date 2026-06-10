@@ -26,6 +26,8 @@ import type { Dataset, UiEdge, UiSnapshot, MetricMode, ClusterDelta } from '$lib
  */
 export class DashboardState {
     // ── User-controlled inputs ──────────────────────────────────────────
+    // Picker options; replaced by the loaded dataset's `meta.backends`.
+    devices = $state<string[]>(QPU_DEVICES);
     device = $state(QPU_DEVICES[0]);
     timeIdx = $state(0);
     metricMode = $state<MetricMode>('readout');
@@ -107,7 +109,7 @@ export class DashboardState {
         if (!this.cluster.length) return null;
         const cq = this.cluster.map((id) => this.snap.qubits[id]).filter(Boolean);
         if (!cq.length) return null;
-        const clSet = new Set(this.cluster);
+        const clSet = new SvelteSet(this.cluster);
         const ce = this.filteredEdges.filter(
             (e) => clSet.has(e.source) && clSet.has(e.target)
         );
@@ -262,6 +264,10 @@ export class DashboardState {
 
         this.snapshotsByDevice = snapshotsByDevice;
         this.baseEdgesByDevice = baseEdgesByDevice;
+        this.devices = dataset.meta?.backends?.length ? dataset.meta.backends : devices;
+        if (!this.devices.includes(this.device)) {
+            this.device = this.devices[0] ?? this.device;
+        }
         const currentList = snapshotsByDevice[this.device] || [];
         this.timeIdx = currentList.length ? currentList.length - 1 : 0;
         this.ensureTimeIdx();

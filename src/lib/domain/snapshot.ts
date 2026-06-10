@@ -12,8 +12,6 @@ function emptyQubit(id: number): UiQubit {
         T1: null,
         T2: null,
         readout_error: null,
-        sx_error: null,
-        frequency: null,
         p01: null,
         p10: null
     };
@@ -29,8 +27,6 @@ export function buildUiSnapshot(snap: Snapshot, baseEdges: UiEdge[], totalQubits
         target.T1 = typeof q.T1 === 'number' ? q.T1 * 1e6 : null;
         target.T2 = typeof q.T2 === 'number' ? q.T2 * 1e6 : null;
         target.readout_error = typeof q.readout_err === 'number' ? q.readout_err : null;
-        target.sx_error = typeof q.sx_error === 'number' ? q.sx_error : null;
-        target.frequency = typeof q.frequency === 'number' ? q.frequency : null;
         target.p01 = typeof q.p01 === 'number' ? q.p01 : null;
         target.p10 = typeof q.p10 === 'number' ? q.p10 : null;
     });

@@ -1,6 +1,5 @@
 <script lang="ts">
     import { dashboardState } from "$lib/state/dashboard.svelte";
-    import { QPU_DEVICES } from "$lib/data/calibration";
     import { TOPOLOGIES, TOPO_HINT } from "$lib/domain/cluster";
 
     let {
@@ -46,7 +45,7 @@
                         (e.currentTarget as HTMLSelectElement).value,
                     )}
             >
-                {#each QPU_DEVICES as d (d)}
+                {#each dashboardState.devices as d (d)}
                     <option value={d}>{d}</option>
                 {/each}
             </select>

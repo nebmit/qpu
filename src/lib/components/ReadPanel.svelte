@@ -2,7 +2,7 @@
     import { flip } from "svelte/animate";
     import { DUR, ease, prefersReducedMotion } from "$lib/viz/motion";
     import { dashboardState } from "$lib/state/dashboard.svelte";
-    import { metricNodeColor, edgeColor } from "$lib/viz/color";
+    import { metricNodeColor, LIVE_EDGE_STROKE } from "$lib/viz/color";
     import {
         microseconds,
         percent,
@@ -13,8 +13,6 @@
     // ── color scale endpoints for legend bars ─────────────────────────
     const NODE_LO = metricNodeColor(0); // bad end (dark indigo)
     const NODE_HI = metricNodeColor(1); // good end (yellow-green)
-    const EDGE_LO = edgeColor(0); // high error (muted lavender)
-    const EDGE_HI = edgeColor(1); // low error (deep indigo)
 
     let { mobileOpen = false, onClose } = $props<{
         mobileOpen?: boolean;
@@ -416,10 +414,19 @@
                 </div>
                 <div class="lg-pair">
                     <div class="lg-label">2Q gate error · edges</div>
-                    <div
-                        class="lg-bar"
-                        style="background: linear-gradient(to right, {EDGE_LO}, {EDGE_HI})"
-                    ></div>
+                    <!-- Edge quality is drawn as stroke width on the lattice
+                         (thick = low error), so the legend shows a taper, not a colour ramp. -->
+                    <svg
+                        class="lg-bar lg-bar-edge"
+                        viewBox="0 0 100 8"
+                        preserveAspectRatio="none"
+                        aria-hidden="true"
+                    >
+                        <polygon
+                            points="0,1.2 100,3.5 100,4.5 0,6.8"
+                            fill={LIVE_EDGE_STROKE}
+                        />
+                    </svg>
                     <div class="lg-ends">
                         <span>{edgeLegend.lo}</span>
                         <span>{edgeLegend.hi}</span>
@@ -491,6 +498,10 @@
         height: 6px;
         border-radius: 3px;
         margin-bottom: 5px;
+    }
+    .leg-inline .lg-bar-edge {
+        display: block;
+        width: 100%;
     }
     .leg-inline .lg-ends {
         display: flex;

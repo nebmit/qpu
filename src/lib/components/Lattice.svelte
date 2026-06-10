@@ -107,6 +107,9 @@
         ),
     );
 
+    // Opacities for de-emphasizing non-cluster content while a cluster is shown.
+    // "Early" values (during the reveal cascade) dim less so context stays
+    // readable mid-animation; once settled, the dimming deepens.
     const OUT_NODE = 0.38;
     const OUT_NODE_EARLY = 0.68;
     const OUT_EDGE = 0.11;
@@ -116,7 +119,7 @@
     let revealPhase = $state<"idle" | "early" | "settle">("idle");
     let revealActive = $state<Set<number>>(new Set());
     let pingRings = $state<{ id: number; key: number }[]>([]);
-    let revealTimers: NodeJS.Timeout[] = [];
+    let revealTimers: ReturnType<typeof setTimeout>[] = [];
     let pingKey = 0;
 
     let clSet = $derived(
@@ -226,6 +229,8 @@
         pingRings = [];
         revealPhase = "early";
         const order = assembleOrder(cluster);
+        // Per-node stagger: aim for a ~820ms total cascade, but keep each step
+        // in a 55–115ms band so small clusters don't crawl and large ones don't blur.
         const step = Math.round(
             Math.max(55, Math.min(115, 820 / Math.max(1, order.length))),
         );
@@ -426,7 +431,6 @@
                     {@const fill = metricNodeColor(score)}
                     {@const r = isHov ? R * 1.35 : R}
 
-                    <!-- svelte-ignore a11y_no_static_element_interactions, a11y_click_events_have_key_events -->
                     <g
                         transform={`translate(${p.x},${p.y})`}
                         style:opacity={clSet.size > 0 && !inCl
@@ -435,13 +439,27 @@
                         class="qnode {interactive
                             ? 'cursor-pointer'
                             : 'pointer-events-none'}"
+                        role="button"
+                        aria-label="Qubit {pos.id}"
+                        tabindex={interactive ? 0 : -1}
                         onmouseenter={() => (dashboardState.hoveredId = pos.id)}
                         onmouseleave={() => (dashboardState.hoveredId = null)}
+                        onfocus={() => (dashboardState.hoveredId = pos.id)}
+                        onblur={() => (dashboardState.hoveredId = null)}
                         onclick={() =>
                             (dashboardState.selectedId =
                                 dashboardState.selectedId === pos.id
                                     ? null
                                     : pos.id)}
+                        onkeydown={(ev) => {
+                            if (ev.key === "Enter" || ev.key === " ") {
+                                ev.preventDefault();
+                                dashboardState.selectedId =
+                                    dashboardState.selectedId === pos.id
+                                        ? null
+                                        : pos.id;
+                            }
+                        }}
                     >
                         <g
                             class="entry-node"

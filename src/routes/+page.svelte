@@ -10,6 +10,7 @@
     import { BASE_POS } from "$lib/domain/lattice";
     import type { Positions } from "$lib/types";
     import { loadData } from "$lib/data/calibration";
+    import { microseconds, percent } from "$lib/viz/format";
 
     let containerWidth = $state(900);
     let containerHeight = $state(540);
@@ -236,42 +237,32 @@
                             <div class="tooltip-row">
                                 <span class="tooltip-lbl">T₁</span>
                                 <span class="tooltip-val font-mono"
-                                    >{q.T1 == null
-                                        ? "—"
-                                        : `${q.T1.toFixed(0)} μs`}</span
+                                    >{microseconds(q.T1, 1)}</span
                                 >
                             </div>
                             <div class="tooltip-row">
                                 <span class="tooltip-lbl">T₂</span>
                                 <span class="tooltip-val font-mono"
-                                    >{q.T2 == null
-                                        ? "—"
-                                        : `${q.T2.toFixed(0)} μs`}</span
+                                    >{microseconds(q.T2, 1)}</span
                                 >
                             </div>
                             <div class="tooltip-row">
                                 <span class="tooltip-lbl">RO</span>
                                 <span class="tooltip-val font-mono"
-                                    >{q.readout_error == null
-                                        ? "—"
-                                        : `${(q.readout_error * 100).toFixed(2)}%`}</span
+                                    >{percent(q.readout_error, 2)}</span
                                 >
                             </div>
                             <div class="tooltip-divider"></div>
                             <div class="tooltip-row">
                                 <span class="tooltip-lbl">P0|1</span>
                                 <span class="tooltip-val font-mono"
-                                    >{q.p01 == null
-                                        ? "—"
-                                        : `${(q.p01 * 100).toFixed(2)}%`}</span
+                                    >{percent(q.p01, 2)}</span
                                 >
                             </div>
                             <div class="tooltip-row">
                                 <span class="tooltip-lbl">P1|0</span>
                                 <span class="tooltip-val font-mono"
-                                    >{q.p10 == null
-                                        ? "—"
-                                        : `${(q.p10 * 100).toFixed(2)}%`}</span
+                                    >{percent(q.p10, 2)}</span
                                 >
                             </div>
                         </div>

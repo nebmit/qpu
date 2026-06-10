@@ -38,13 +38,9 @@
     }
 
     onMount(() => {
-        const stored = localStorage.getItem("theme");
-        if (stored === "dark" || stored === "light") {
-            dark = stored === "dark";
-        } else {
-            dark = window.matchMedia("(prefers-color-scheme: dark)").matches;
-        }
-        applyTheme(dark);
+        // The theme is resolved and applied pre-paint by the inline script in
+        // app.html; just sync the toggle with what's already on the document.
+        dark = document.documentElement.getAttribute("data-theme") === "dark";
     });
 </script>
 

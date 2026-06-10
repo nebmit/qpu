@@ -24,19 +24,28 @@ export function computeRanges(qubits: UiQubit[], edges: UiEdge[]): MetricRanges 
     };
 }
 
+// Normalize a value into [0,1] within a range. A degenerate range (zero spread,
+// e.g. every qubit in the filtered pool has the same value) carries no ranking
+// information, so everything scores a neutral 0.5 there.
+function normalize(v: number, [lo, hi]: [number, number]): number {
+    const spread = hi - lo;
+    if (spread <= 0) return 0.5;
+    return Math.max(0, Math.min(1, (v - lo) / spread));
+}
+
 // Per-qubit quality in [0,1] for one metric, higher = better. Error metrics are
 // inverted so low error scores high. Missing values score a neutral 0.5.
 export function metricScore(q: UiQubit, mode: MetricMode, R: MetricRanges): number {
     switch (mode) {
         case 'T1':
             if (q.T1 == null) return 0.5;
-            return (q.T1 - R.T1[0]) / (R.T1[1] - R.T1[0] + 1e-9);
+            return normalize(q.T1, R.T1);
         case 'T2':
             if (q.T2 == null) return 0.5;
-            return (q.T2 - R.T2[0]) / (R.T2[1] - R.T2[0] + 1e-9);
+            return normalize(q.T2, R.T2);
         case 'readout':
             if (q.readout_error == null) return 0.5;
-            return 1 - (q.readout_error - R.readout[0]) / (R.readout[1] - R.readout[0] + 1e-9);
+            return 1 - normalize(q.readout_error, R.readout);
         default:
             return 0.5;
     }
@@ -46,5 +55,5 @@ export function metricScore(q: UiQubit, mode: MetricMode, R: MetricRanges): numb
 // score 0 here; the cluster finder treats them more leniently.
 export function edgeScore(e: UiEdge, R: MetricRanges): number {
     if (typeof e.twoq_error !== 'number' || !Number.isFinite(e.twoq_error)) return 0;
-    return 1 - (e.twoq_error - R.twoq[0]) / (R.twoq[1] - R.twoq[0] + 1e-9);
+    return 1 - normalize(e.twoq_error, R.twoq);
 }

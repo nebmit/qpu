@@ -16,7 +16,7 @@ FROM cgr.dev/chainguard/node:latest-dev AS prod-deps
 WORKDIR /app
 
 COPY package.json package-lock.json ./
-RUN npm ci --omit=dev && mkdir -p /app/node_modules
+RUN npm ci --omit=dev
 
 FROM cgr.dev/chainguard/node:latest AS runner
 WORKDIR /app

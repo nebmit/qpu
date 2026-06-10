@@ -7,8 +7,6 @@ export type UiQubit = {
     T1: number | null;
     T2: number | null;
     readout_error: number | null;
-    sx_error: number | null;
-    frequency: number | null;
     p01: number | null;
     p10: number | null;
 };
