@@ -251,6 +251,28 @@
       background: rgba(255,255,255,0.12);
       border-radius: 4px;
     }
+    .btn.present {
+      font-size: 11px;
+      font-weight: 500;
+      letter-spacing: 0.02em;
+      padding: 0 10px 0 12px;
+      gap: 6px;
+      color: rgba(255,255,255,0.72);
+    }
+    .btn.present .kbd {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-width: 16px;
+      height: 16px;
+      padding: 0 4px;
+      font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+      font-size: 10px;
+      line-height: 1;
+      color: rgba(255,255,255,0.88);
+      background: rgba(255,255,255,0.12);
+      border-radius: 4px;
+    }
 
     .count {
       font-variant-numeric: tabular-nums;
@@ -579,6 +601,7 @@
       this._onMouseMove = this._onMouseMove.bind(this);
       this._onTap = this._onTap.bind(this);
       this._onMessage = this._onMessage.bind(this);
+      this._onFullscreenChange = this._onFullscreenChange.bind(this);
       // Capture-phase close so a click anywhere dismisses the menu, but
       // ignore clicks that land inside the menu itself — otherwise the
       // capture handler runs before the menu's own (bubble) handler and
@@ -609,6 +632,7 @@
       window.addEventListener('mousemove', this._onMouseMove, { passive: true });
       window.addEventListener('message', this._onMessage);
       window.addEventListener('click', this._onDocClick, true);
+      document.addEventListener('fullscreenchange', this._onFullscreenChange);
       this.addEventListener('click', this._onTap);
       // Print lays every slide out as its own page, so [data-deck-active]-
       // gated entrance styles need the attribute on every slide (not just
@@ -816,6 +840,7 @@
       window.removeEventListener('mousemove', this._onMouseMove);
       window.removeEventListener('message', this._onMessage);
       window.removeEventListener('click', this._onDocClick, true);
+      document.removeEventListener('fullscreenchange', this._onFullscreenChange);
       window.removeEventListener('beforeprint', this._onBeforePrint);
       window.removeEventListener('afterprint', this._onAfterPrint);
       if (this._freezeStyle) { this._freezeStyle.remove(); this._freezeStyle = null; }
@@ -880,11 +905,14 @@
           <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 3l5 5-5 5"/></svg>
         </button>
         <span class="divider"></span>
+        <button class="btn present" type="button" aria-label="Present slides fullscreen" title="Present (F)">Present<span class="kbd">F</span></button>
+        <span class="divider"></span>
         <button class="btn reset" type="button" aria-label="Reset to first slide" title="Reset (R)">Reset<span class="kbd">R</span></button>
       `;
 
       overlay.querySelector('.prev').addEventListener('click', () => this._advance(-1, 'click'));
       overlay.querySelector('.next').addEventListener('click', () => this._advance(1, 'click'));
+      overlay.querySelector('.present').addEventListener('click', () => this._togglePresentation());
       overlay.querySelector('.reset').addEventListener('click', () => this._go(0, 'click'));
 
       // Thumbnail rail + context menu. Thumbnails are populated in
@@ -1224,19 +1252,59 @@
       this._flashOverlay();
     }
 
+    _setPresenting(on) {
+      if (on === this._presenting) return;
+      this._presenting = on;
+      if (this._presenting && this._overlay) {
+        this._overlay.removeAttribute('data-visible');
+        if (this._hideTimer) clearTimeout(this._hideTimer);
+      }
+      this._syncRailHidden();
+      this._closeMenu();
+      this._closeConfirm();
+      this._fit();
+      this._scaleThumbs();
+      if (!this._presenting) this._flashOverlay();
+    }
+
+    async _enterPresentation() {
+      this._setPresenting(true);
+      if (!document.fullscreenElement && this.requestFullscreen) {
+        try {
+          await this.requestFullscreen();
+        } catch (e) {
+          // Fullscreen can be denied by browser policy; keep clean mode active.
+          console.warn('[deck-stage] Fullscreen request failed:', e);
+        }
+      }
+    }
+
+    async _exitPresentation() {
+      if (document.fullscreenElement && document.exitFullscreen) {
+        try {
+          await document.exitFullscreen();
+        } catch (e) {
+          console.warn('[deck-stage] Fullscreen exit failed:', e);
+        }
+      }
+      this._setPresenting(false);
+    }
+
+    _togglePresentation() {
+      if (this._presenting) this._exitPresentation();
+      else this._enterPresentation();
+    }
+
+    _onFullscreenChange() {
+      if (!document.fullscreenElement && this._presenting) {
+        this._setPresenting(false);
+      }
+    }
+
     _onMessage(e) {
       const d = e.data;
       if (d && typeof d.__omelette_presenting === 'boolean') {
-        this._presenting = d.__omelette_presenting;
-        if (this._presenting && this._overlay) {
-          this._overlay.removeAttribute('data-visible');
-          if (this._hideTimer) clearTimeout(this._hideTimer);
-        }
-        this._syncRailHidden();
-        this._closeMenu();
-        this._closeConfirm();
-        this._fit();
-        this._scaleThumbs();
+        this._setPresenting(d.__omelette_presenting);
       }
       // Host's Preview segment (ViewerMode='none'): the rail's drag-reorder /
       // right-click skip-delete affordances are editing chrome, so hide it
@@ -1341,6 +1409,8 @@
         this._go(0, 'keyboard');
       } else if (key === 'End') {
         this._go(this._slides.length - 1, 'keyboard');
+      } else if (key === 'f' || key === 'F') {
+        this._togglePresentation();
       } else if (key === 'r' || key === 'R') {
         this._go(0, 'keyboard');
       } else if (/^[0-9]$/.test(key)) {
