@@ -26,9 +26,9 @@
 </script>
 
 <aside class="plate-operate" class:mob-open={mobileOpen}>
-    <div class="sheet-handle" onclick={onClose} aria-label="Close controls">
+    <button type="button" class="sheet-handle" onclick={onClose} aria-label="Close controls">
         <span class="sheet-handle-bar"></span>
-    </div>
+    </button>
 
     <!-- ① Device -->
     <div class="op-device">
@@ -122,6 +122,7 @@
                 max="100"
                 step="0.1"
                 bind:value={dashboardState.errorCutoffs.readoutPct}
+                onchange={() => dashboardState.clearCluster()}
             />
         </div>
 
@@ -141,6 +142,7 @@
                 max="100"
                 step="0.1"
                 bind:value={dashboardState.errorCutoffs.twoqPct}
+                onchange={() => dashboardState.clearCluster()}
             />
         </div>
 
@@ -165,6 +167,7 @@
                 max="500"
                 step="1"
                 bind:value={dashboardState.coherenceCutoffs.minT1}
+                onchange={() => dashboardState.clearCluster()}
             />
         </div>
 
@@ -183,6 +186,7 @@
                 max="500"
                 step="1"
                 bind:value={dashboardState.coherenceCutoffs.minT2}
+                onchange={() => dashboardState.clearCluster()}
             />
         </div>
     </div>
@@ -412,19 +416,6 @@
     }
     .find .arr {
         font-family: var(--font-mono);
-    }
-
-    .find-status.err .fs-warn {
-        color: oklch(60% 0.16 60);
-        font-weight: 700;
-        flex-shrink: 0;
-    }
-    :global([data-theme="dark"]) .find-status.err {
-        background: oklch(33% 0.06 60);
-        border-color: oklch(48% 0.09 60);
-    }
-    :global([data-theme="dark"]) .find-status.err .fs-warn {
-        color: oklch(78% 0.13 70);
     }
 
     /* ── Dropdown ──────────────────────────────────────────────────── */

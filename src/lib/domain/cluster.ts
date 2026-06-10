@@ -2,6 +2,9 @@ import type { UiQubit, UiEdge } from '$lib/types';
 import { computeRanges, metricScore, edgeScore } from '$lib/domain/metrics';
 import { edgeKey } from '$lib/domain/lattice';
 
+// How many top-ranked seed nodes to try before picking the best grown cluster.
+// 14 ≈ 9% of the 156-qubit device — enough variety to escape local quality peaks
+// (different qubit degrees, component shapes) without making growth O(n²) costly.
 const CLUSTER_SEED_CANDIDATES = 14;
 
 // findCluster scoring weights. Node-metric weights blend three normalized
@@ -10,10 +13,14 @@ const CLUSTER_SEED_CANDIDATES = 14;
 const NODE_WEIGHTS = { readout: 0.4, T1: 0.3, T2: 0.3 };
 const W_NODE = 0.6;
 const W_EDGE = 0.4;
-// Soft topology nudges, small relative to the [0,1] quality terms.
-const TOPO_LINEAR_OVERDEGREE_PENALTY = 0.5; // adding past a degree-2 chain
-const TOPO_LINEAR_ENDPOINT_BONUS = 0.05;    // extend a true endpoint
-const TOPO_BRANCHED_JUNCTION_BONUS = 0.05;  // reward forming junctions
+// Topology nudges applied as additive bias to the gain score (range ≈ [0, 1]).
+// The overdegree penalty (0.5) must dominate a single node+edge gain (max 1.0)
+// to reliably block branching in linear mode — it is intentionally large.
+// The endpoint/junction bonuses (0.05) are tie-breakers only; keeping them an
+// order of magnitude smaller than the penalty means they never override quality.
+const TOPO_LINEAR_OVERDEGREE_PENALTY = 0.5; // blocks pushing a member past degree 2
+const TOPO_LINEAR_ENDPOINT_BONUS = 0.05;    // prefers extending a true chain endpoint
+const TOPO_BRANCHED_JUNCTION_BONUS = 0.05;  // prefers forming a junction over a leaf
 
 type ConnRules = { endpoint: number; chain: number; junction: number };
 

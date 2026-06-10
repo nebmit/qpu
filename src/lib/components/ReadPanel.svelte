@@ -91,9 +91,9 @@
 </script>
 
 <aside class="plate-read" class:mob-open={mobileOpen}>
-    <div class="sheet-handle" onclick={onClose} aria-label="Close results">
+    <button type="button" class="sheet-handle" onclick={onClose} aria-label="Close results">
         <span class="sheet-handle-bar"></span>
-    </div>
+    </button>
     <!-- ── TOP: inspector priority: node detail > cluster result > empty ── -->
 
     {#if inspectedQubit !== null && inspectedId !== null}

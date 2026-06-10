@@ -31,10 +31,14 @@ export function metricNodeColor(t: number) {
     return `oklch(${L.toFixed(1)}% ${C.toFixed(3)} ${H.toFixed(1)})`;
 }
 
-export function edgeColor(t: number) {
+// Fixed neutral stroke for live edges — quality is encoded via stroke-width, not colour.
+export const LIVE_EDGE_STROKE = "oklch(64% 0.09 258)";
+
+// Indigo ramp for edge quality: muted lavender (t=0, high error) → deep indigo (t=1, low error).
+export function edgeColor(t: number): string {
     t = Math.max(0, Math.min(1, t));
-    // Indigo-family mono ramp: muted lavender (t=0, high error) → deep indigo (t=1, low error).
-    const L = 76 - t * 34;     // 76 → 42
-    const C = 0.04 + t * 0.09; // 0.04 → 0.13
-    return `oklch(${L.toFixed(1)}% ${C.toFixed(3)} 276)`;
+    const L = 72 - t * 34;   // 72 → 38
+    const C = 0.07 + t * 0.11; // 0.07 → 0.18
+    const H = 290 - t * 32;  // 290 → 258
+    return `oklch(${L.toFixed(1)}% ${C.toFixed(3)} ${H.toFixed(1)})`;
 }

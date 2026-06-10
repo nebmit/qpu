@@ -157,6 +157,9 @@ html, body {
   flex-shrink: 0;
   cursor: pointer;
   touch-action: manipulation;
+  background: none;
+  border: none;
+  width: 100%;
 }
 .sheet-handle-bar { width: 34px; height: 4px; border-radius: 2px; background: var(--border-mid); }
 

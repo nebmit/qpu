@@ -333,6 +333,10 @@
                 class="mob-backdrop"
                 class:show={activeSheet !== null}
                 onclick={closeSheet}
+                onkeydown={(e) => { if (e.key === 'Enter' || e.key === ' ') closeSheet(); }}
+                role="button"
+                tabindex="-1"
+                aria-label="Close panel"
             ></div>
         </div>
     </div>

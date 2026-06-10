@@ -11,7 +11,7 @@
     import { dashboardState } from "$lib/state/dashboard.svelte";
     import { metricScore, edgeScore } from "$lib/domain/metrics";
     import { edgeKey } from "$lib/domain/lattice";
-    import { metricNodeColor, edgeColor } from "$lib/viz/color";
+    import { metricNodeColor, LIVE_EDGE_STROKE } from "$lib/viz/color";
     import { SvelteMap, SvelteSet } from "svelte/reactivity";
 
     type LatticePos = {
@@ -365,7 +365,8 @@
                         typeof e.twoq_error === "number" &&
                         Number.isFinite(e.twoq_error)}
                     {@const t = edgeScore(e, dashboardState.ranges)}
-                    {@const baseOpacity = hasErr ? 0.45 : 0.2}
+                    {@const baseOpacity = hasErr ? 0.5 : 0.2}
+                    {@const qw = hasErr ? 0.5 + t * 2.0 : 0.7}
                     {@const isActive =
                         revealActive.has(e.source) &&
                         revealActive.has(e.target)}
@@ -375,8 +376,8 @@
                         y1={a.y}
                         x2={b.x}
                         y2={b.y}
-                        stroke={edgeColor(t)}
-                        style:stroke-width={inCl ? (isActive ? 1.8 : 1) : 1}
+                        stroke={LIVE_EDGE_STROKE}
+                        style:stroke-width={inCl ? (isActive ? qw + 1.0 : qw + 0.4) : qw}
                         style:stroke-opacity={inCl
                             ? isActive
                                 ? IN_EDGE
