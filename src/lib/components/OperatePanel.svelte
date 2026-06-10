@@ -22,6 +22,8 @@
             dashboardState.snapshotsByDevice[dashboardState.device] || [];
         return list[list.length - 1]?.date || "—";
     });
+
+    const clearClusterDuringSliderInput = () => dashboardState.clearCluster();
 </script>
 
 <aside class="plate-operate" class:mob-open={mobileOpen}>
@@ -83,7 +85,7 @@
             min="0"
             max={Math.max(0, dashboardState.timeCount - 1)}
             bind:value={dashboardState.timeIdx}
-            onchange={() => dashboardState.clearCluster()}
+            oninput={clearClusterDuringSliderInput}
             disabled={dashboardState.timeCount <= 1}
         />
         <div class="ends">
@@ -121,7 +123,7 @@
                 max="100"
                 step="0.1"
                 bind:value={dashboardState.errorCutoffs.readoutPct}
-                onchange={() => dashboardState.clearCluster()}
+                oninput={clearClusterDuringSliderInput}
             />
         </div>
 
@@ -141,7 +143,7 @@
                 max="100"
                 step="0.1"
                 bind:value={dashboardState.errorCutoffs.twoqPct}
-                onchange={() => dashboardState.clearCluster()}
+                oninput={clearClusterDuringSliderInput}
             />
         </div>
 
@@ -166,7 +168,7 @@
                 max="500"
                 step="1"
                 bind:value={dashboardState.coherenceCutoffs.minT1}
-                onchange={() => dashboardState.clearCluster()}
+                oninput={clearClusterDuringSliderInput}
             />
         </div>
 
@@ -185,7 +187,7 @@
                 max="500"
                 step="1"
                 bind:value={dashboardState.coherenceCutoffs.minT2}
-                onchange={() => dashboardState.clearCluster()}
+                oninput={clearClusterDuringSliderInput}
             />
         </div>
     </div>
@@ -211,7 +213,7 @@
                 max="50"
                 step="1"
                 bind:value={dashboardState.clusterSize}
-                onchange={() => dashboardState.clearCluster()}
+                oninput={clearClusterDuringSliderInput}
             />
         </div>
 
