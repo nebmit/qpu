@@ -1,0 +1,1832 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <title>QPU Calibration Visualizer — Conference Talk</title>
+  <!-- Fonts are self-hosted (static/fonts/) so the deck renders identically offline. -->
+  <link rel="stylesheet" href="fonts/plex.css">
+  <script src="deck-stage.js"></script>
+  <style>
+    deck-stage:not(:defined) {
+      visibility: hidden
+    }
+  </style>
+  <style>
+    /* ── TOKENS ── */
+    :root {
+      --n0: #070e1c;
+      --n1: #0c1728;
+      --n2: #111f38;
+      --cT: #00c9a5;
+      --cB: #3ea8f0;
+      --cX: #14202e;
+      --cM: #5a6880;
+      --cL: #dde1ec;
+      --cG: #f5f7fb;
+      --cW: #ffffff;
+      --cGo: #1aaa6c;
+      --cWa: #f0a830;
+      --cEr: #e35050;
+      --fs: 'IBM Plex Sans', system-ui, sans-serif;
+      --fm: 'IBM Plex Mono', monospace;
+    }
+
+    *,
+    *::before,
+    *::after {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    /* ── SLIDE BASE ── */
+    section {
+      width: 1920px;
+      height: 1080px;
+      font-family: var(--fs);
+      color: var(--cX);
+      background: var(--cW);
+      position: relative;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    section.dk {
+      background: var(--n0);
+      color: var(--cW);
+    }
+
+    section.dk::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      pointer-events: none;
+      background-image: radial-gradient(circle, rgba(255, 255, 255, .035) 1px, transparent 1px);
+      background-size: 48px 48px;
+    }
+
+    /* ── ACCENT STRIPE ── */
+    .stripe {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 5px;
+      height: 100%;
+      background: var(--cT);
+    }
+
+    /* ── HEADER BAR ── */
+    .sh {
+      display: flex;
+      align-items: center;
+      gap: 24px;
+      padding: 42px 92px 0;
+    }
+
+    .sh-n {
+      font-family: var(--fm);
+      font-size: 24px;
+      color: var(--cT);
+    }
+
+    .sh-t {
+      font-size: 24px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: .13em;
+      color: var(--cM);
+    }
+
+    .sh-r {
+      flex: 1;
+      height: 1px;
+      background: var(--cL);
+    }
+
+    /* ── BODY ── */
+    .sb {
+      flex: 1;
+      padding: 48px 92px 76px;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .sb.row {
+      flex-direction: row;
+      gap: 76px;
+      align-items: stretch;
+    }
+
+    .col {
+      display: flex;
+      flex-direction: column;
+    }
+
+    .col-t {
+      width: 680px;
+      flex-shrink: 0;
+    }
+
+    .col-f {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+    }
+
+    /* ── TYPOGRAPHY ── */
+    .disp {
+      font-size: 90px;
+      font-weight: 300;
+      line-height: 1.0;
+      letter-spacing: -.025em;
+    }
+
+    .ttl {
+      font-size: 54px;
+      font-weight: 600;
+      line-height: 1.1;
+      letter-spacing: -.02em;
+    }
+
+    .h2 {
+      font-size: 38px;
+      font-weight: 500;
+      line-height: 1.2;
+    }
+
+    .body {
+      font-size: 30px;
+      font-weight: 400;
+      line-height: 1.55;
+    }
+
+    .sm {
+      font-size: 26px;
+      line-height: 1.5;
+    }
+
+    .lbl {
+      font-size: 24px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: .12em;
+    }
+
+    .mono {
+      font-family: var(--fm);
+    }
+
+    .tc {
+      color: var(--cT);
+    }
+
+    .tm {
+      color: var(--cM);
+    }
+
+    /* ── TEAL RULE ── */
+    .tr {
+      width: 72px;
+      height: 4px;
+      background: var(--cT);
+      margin-bottom: 34px;
+      border-radius: 2px;
+    }
+
+    /* ── BULLETS ── */
+    .blist {
+      display: flex;
+      flex-direction: column;
+      gap: 26px;
+    }
+
+    .bi {
+      display: flex;
+      align-items: flex-start;
+      gap: 20px;
+      font-size: 30px;
+      line-height: 1.45;
+    }
+
+    .bd {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: var(--cT);
+      margin-top: 13px;
+      flex-shrink: 0;
+    }
+
+    /* ── METRIC CARDS ── */
+    .mcrow {
+      display: flex;
+      gap: 24px;
+    }
+
+    .mc {
+      flex: 1;
+      background: var(--cG);
+      border: 1px solid var(--cL);
+      border-radius: 14px;
+      padding: 34px 38px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      min-height: 280px;
+    }
+
+    .mc-lbl {
+      font-size: 24px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: .1em;
+      color: var(--cM);
+    }
+
+    .mc-val {
+      font-family: var(--fm);
+      font-size: 50px;
+      font-weight: 500;
+      color: var(--cX);
+    }
+
+    .mc-sub {
+      font-size: 24px;
+      color: var(--cM);
+      line-height: 1.4;
+    }
+
+    .mc-d {
+      font-family: var(--fm);
+      font-size: 24px;
+      font-weight: 600;
+      margin-top: 4px;
+      color: var(--cGo);
+    }
+
+    /* ── EQ BLOCK ── */
+    .eq {
+      background: var(--n0);
+      border-radius: 14px;
+      padding: 32px 44px;
+      font-family: var(--fm);
+      font-size: 30px;
+      color: var(--cT);
+      line-height: 1.7;
+    }
+
+    /* ── CHIPS ── */
+    .chips {
+      display: flex;
+      gap: 16px;
+      flex-wrap: wrap;
+    }
+
+    .chip {
+      background: var(--cG);
+      border: 1px solid var(--cL);
+      border-radius: 100px;
+      padding: 13px 30px;
+      font-size: 26px;
+      font-weight: 500;
+    }
+
+    .chip.mono {
+      font-family: var(--fm);
+      font-size: 24px;
+    }
+
+    /* ── WEIGHT BARS (algorithm · score slide) ── */
+    .wbar-block {
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+    }
+
+    .wbar {
+      display: flex;
+      height: 96px;
+      border-radius: 14px;
+      overflow: hidden;
+      border: 1px solid var(--cL);
+    }
+
+    .wseg {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 2px;
+      color: #fff;
+    }
+
+    .wseg .ws-n {
+      font-family: var(--fm);
+      font-size: 30px;
+      font-weight: 600;
+    }
+
+    .wseg .ws-l {
+      font-size: 22px;
+      font-weight: 500;
+      letter-spacing: .04em;
+      opacity: .9;
+    }
+
+    /* ── NORMALIZATION STRIP ── */
+    .norm {
+      position: relative;
+      height: 18px;
+      border-radius: 9px;
+      background: linear-gradient(90deg, #e9ecf4, var(--cT));
+    }
+
+    .norm-tick {
+      position: absolute;
+      top: -10px;
+      width: 3px;
+      height: 38px;
+      border-radius: 2px;
+      background: var(--cX);
+    }
+
+    /* ── GROWTH PANELS (algorithm · grow slide) ── */
+    .gpanels {
+      display: flex;
+      gap: 26px;
+    }
+
+    .gpanel {
+      flex: 1;
+      background: var(--cG);
+      border: 1px solid var(--cL);
+      border-radius: 14px;
+      padding: 22px 20px 16px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .gp-cap {
+      font-size: 22px;
+      font-weight: 600;
+      color: var(--cX);
+      text-align: center;
+    }
+
+    .gp-sub {
+      font-size: 20px;
+      color: var(--cM);
+      text-align: center;
+      line-height: 1.35;
+    }
+
+    /* ── TOPOLOGY CARDS ── */
+    .topo-cards {
+      display: flex;
+      gap: 24px;
+    }
+
+    .topo-card {
+      flex: 1;
+      border: 1px solid var(--cL);
+      border-radius: 14px;
+      padding: 24px 30px;
+      display: flex;
+      align-items: center;
+      gap: 26px;
+    }
+
+    .topo-card .tc-t {
+      font-size: 26px;
+      font-weight: 600;
+    }
+
+    .topo-card .tc-s {
+      font-size: 22px;
+      color: var(--cM);
+      line-height: 1.35;
+    }
+
+    /* ── APP SCREENSHOT + CALLOUTS (tool slide) ── */
+    .shot-wrap {
+      position: relative;
+      border: 1px solid var(--cL);
+      border-radius: 14px;
+      overflow: hidden;
+      box-shadow: 0 18px 50px rgba(7, 14, 28, .14);
+      line-height: 0;
+    }
+
+    .shot-wrap img {
+      width: 100%;
+      height: auto;
+      display: block;
+    }
+
+    .co-badge {
+      position: absolute;
+      width: 52px;
+      height: 52px;
+      margin: -26px 0 0 -26px;
+      border-radius: 50%;
+      background: var(--cT);
+      color: var(--n0);
+      font-family: var(--fm);
+      font-size: 26px;
+      font-weight: 600;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      box-shadow: 0 0 0 5px rgba(255, 255, 255, .85), 0 4px 14px rgba(7, 14, 28, .35);
+    }
+
+    .feat {
+      display: flex;
+      align-items: flex-start;
+      gap: 22px;
+    }
+
+    .feat .sn {
+      margin-top: 4px;
+    }
+
+    /* ── STEPS ── */
+    .steps {
+      display: flex;
+      flex-direction: column;
+      gap: 28px;
+    }
+
+    .step {
+      display: flex;
+      align-items: flex-start;
+      gap: 22px;
+    }
+
+    .sn {
+      width: 48px;
+      height: 48px;
+      border-radius: 50%;
+      background: var(--cT);
+      color: var(--n0);
+      font-family: var(--fm);
+      font-size: 24px;
+      font-weight: 500;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+      margin-top: 2px;
+    }
+
+    .st {
+      display: flex;
+      flex-direction: column;
+      gap: 3px;
+    }
+
+    .st-m {
+      font-size: 28px;
+      font-weight: 500;
+      line-height: 1.3;
+    }
+
+    .st-s {
+      font-size: 24px;
+      color: var(--cM);
+    }
+
+    /* ── ENTRANCE ANIMATIONS ──
+       Content is VISIBLE at rest; the entrance animation only plays when a
+       slide becomes active and motion is allowed. This keeps the rail
+       thumbnails, print output, and reduced-motion views fully populated
+       (deck-stage strips [data-deck-active] from thumbnail clones). */
+    @keyframes deck-rise {
+      from {
+        opacity: 0;
+        transform: translateY(18px);
+      }
+
+      to {
+        opacity: 1;
+        transform: none;
+      }
+    }
+
+    @media(prefers-reduced-motion:no-preference) {
+      [data-deck-active] .au {
+        animation: deck-rise .55s cubic-bezier(.22, .68, 0, 1.2) both;
+      }
+
+      [data-deck-active] .d1 {
+        animation-delay: .08s;
+      }
+
+      [data-deck-active] .d2 {
+        animation-delay: .18s;
+      }
+
+      [data-deck-active] .d3 {
+        animation-delay: .28s;
+      }
+
+      [data-deck-active] .d4 {
+        animation-delay: .38s;
+      }
+
+      [data-deck-active] .d5 {
+        animation-delay: .48s;
+      }
+
+      [data-deck-active] .d6 {
+        animation-delay: .58s;
+      }
+    }
+
+    @media print {
+      @page {
+        size: 1920px 1080px;
+        margin: 0;
+      }
+
+      /* Force colors */
+      *,
+      *::before,
+      *::after {
+        -webkit-print-color-adjust: exact !important;
+        print-color-adjust: exact !important;
+      }
+
+      /* Jump all animations to end-state */
+      *,
+      *::before,
+      *::after {
+        animation-delay: -99s !important;
+        animation-duration: .001s !important;
+        animation-iteration-count: 1 !important;
+        animation-fill-mode: both !important;
+        animation-play-state: running !important;
+        transition-duration: 0s !important;
+      }
+
+      /* Hide deck-stage chrome */
+      deck-stage::part(nav),
+      deck-stage::part(progress),
+      deck-stage::part(counter) {
+        display: none !important;
+      }
+
+      /* Each slide = one page, exact 1920×1080 */
+      section {
+        width: 1920px !important;
+        height: 1080px !important;
+        overflow: hidden !important;
+        break-before: page !important;
+        break-inside: avoid !important;
+        page-break-before: always !important;
+      }
+
+      section:first-child {
+        break-before: auto !important;
+        page-break-before: auto !important;
+      }
+    }
+  </style>
+</head>
+
+<body>
+  <deck-stage width="1920" height="1080">
+
+    <!-- ══ 01 · TITLE ══ -->
+    <section data-deck-active class="dk" data-label="01 Title">
+      <div class="stripe"></div>
+      <div style="flex:1;display:flex;flex-direction:column;justify-content:center;padding:0 144px;">
+        <div class="lbl tc au" style="margin-bottom:32px;letter-spacing:.2em;">IBM QUANTUM · HERON R2 · 2026</div>
+        <h1 class="disp au d1" style="color:var(--cW);max-width:1280px;margin-bottom:28px;">
+          QPU Calibration<br>Visualizer
+        </h1>
+        <div class="body au d2" style="color:#8a9ab6;max-width:840px;">
+          Finding the best qubits on IBM quantum hardware
+        </div>
+      </div>
+      <div style="padding:0 144px 64px;display:flex;justify-content:space-between;">
+        <div class="sm mono au d3" style="color:#3e5070;">github.com/nebmit/qpu</div>
+        <div class="sm mono au d3" style="color:#3e5070;">2026</div>
+      </div>
+    </section>
+
+    <!-- ══ 02 · CONTEXT ══ -->
+    <section data-label="02 Context">
+      <div class="sh"><span class="sh-n">02</span><span class="sh-t">Context</span>
+        <div class="sh-r"></div>
+      </div>
+      <div class="sb" style="justify-content:space-between;">
+        <div class="tr au"></div>
+        <h2 class="ttl au d1" style="max-width:1100px;margin-bottom:44px;">
+          We have quantum computers.<br>They're noisy.
+        </h2>
+        <div class="chips au d2" style="margin-bottom:52px;">
+          <div class="chip">100 – 1000+ qubits commercially available today</div>
+          <div class="chip">Gate error rates: 0.1 – 1%</div>
+          <div class="chip">Coherence times: 10 – 1000 μs</div>
+        </div>
+        <div class="body tm au d3" style="max-width:1200px;line-height:1.6;">
+          This is the <strong style="color:var(--cX)">Noisy Intermediate-Scale Quantum (NISQ)</strong> era.
+          Circuits must complete before decoherence destroys the computation —
+          and not every qubit on a chip performs equally well.
+        </div>
+      </div>
+    </section>
+
+    <!-- ══ 03 · THE QUBIT ══ -->
+    <section data-label="03 The Qubit">
+      <div class="sh"><span class="sh-n">03</span><span class="sh-t">Background</span>
+        <div class="sh-r"></div>
+      </div>
+      <div class="sb row">
+        <div class="col col-t">
+          <div class="tr au"></div>
+          <h2 class="ttl au d1" style="margin-bottom:40px;">The quantum bit</h2>
+          <div class="blist au d2" style="margin-bottom:44px;">
+            <div class="bi">
+              <div class="bd"></div><span>A classical bit is exactly <strong>0</strong> or <strong>1</strong></span>
+            </div>
+            <div class="bi">
+              <div class="bd"></div><span>A qubit exists in a <strong>superposition</strong> of both simultaneously</span>
+            </div>
+            <div class="bi">
+              <div class="bd"></div><span>Measurement collapses the state to a definite 0 or 1</span>
+            </div>
+            <div class="bi">
+              <div class="bd"></div><span>N qubits span a superposition of 2<sup>N</sup> basis states</span>
+            </div>
+          </div>
+          <div class="eq au d3">
+            |ψ⟩ = α|0⟩ + β|1⟩
+            <div style="font-size:24px;color:#6ab0cc;margin-top:6px;">where |α|² + |β|² = 1</div>
+          </div>
+        </div>
+        <div class="col col-f au d2">
+          <svg width="560" height="560" viewBox="-215 -215 430 430" style="overflow:visible;">
+            <circle r="185" fill="none" stroke="var(--cL)" stroke-width="1.5" />
+            <ellipse rx="185" ry="50" fill="none" stroke="var(--cL)" stroke-width="1" stroke-dasharray="5 5" />
+            <line y1="-185" y2="185" stroke="var(--cL)" stroke-width="1" stroke-dasharray="4 4" />
+            <line x1="-185" x2="185" stroke="var(--cL)" stroke-width="1" stroke-dasharray="4 4" />
+            <circle cy="-185" r="7" fill="var(--cX)" />
+            <text y="-200" text-anchor="middle" font-family="IBM Plex Mono" font-size="28" fill="var(--cX)">|0⟩</text>
+            <circle cy="185" r="7" fill="var(--cX)" />
+            <text y="224" text-anchor="middle" font-family="IBM Plex Mono" font-size="28" fill="var(--cX)">|1⟩</text>
+            <line x2="124" y2="-124" stroke="var(--cT)" stroke-width="3" />
+            <circle cx="124" cy="-124" r="9" fill="var(--cT)" />
+            <text x="140" y="-136" font-family="IBM Plex Mono" font-size="24" fill="var(--cT)">|ψ⟩</text>
+            <path d="M0,-48 A48,48 0 0 1 34,-34" fill="none" stroke="var(--cM)" stroke-width="1.5" />
+            <text x="6" y="-12" font-family="IBM Plex Mono" font-size="24" fill="var(--cM)">θ</text>
+          </svg>
+          <div class="sm tm" style="margin-top:14px;text-align:center;">Bloch sphere — qubit state space</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ══ 04 · DECOHERENCE ══ -->
+    <section data-label="04 Decoherence">
+      <div class="sh"><span class="sh-n">04</span><span class="sh-t">Background</span>
+        <div class="sh-r"></div>
+      </div>
+      <div class="sb">
+        <div class="tr au"></div>
+        <h2 class="ttl au d1" style="margin-bottom:12px;">Quantum states are fragile</h2>
+        <div class="body tm au d2" style="margin-bottom:40px;">Interaction with the environment destroys quantum information. Two key timescales:</div>
+        <div style="display:flex;gap:40px;flex:1;" class="au d3">
+          <div style="flex:1;background:var(--cG);border:1px solid var(--cL);border-radius:16px;padding:32px 38px;display:flex;flex-direction:column;">
+            <div class="h2" style="margin-bottom:5px;">T₁ — Relaxation</div>
+            <div class="sm tm" style="margin-bottom:22px;">Excited state |1⟩ decays to ground state |0⟩</div>
+            <svg id="t1-chart" viewBox="0 0 540 200" style="flex:1;width:100%;"></svg>
+            <div class="mono sm tc" style="margin-top:12px;">ibm_fez median T₁ = 123 μs</div>
+          </div>
+          <div style="flex:1;background:var(--cG);border:1px solid var(--cL);border-radius:16px;padding:32px 38px;display:flex;flex-direction:column;">
+            <div class="h2" style="margin-bottom:5px;">T₂ — Dephasing</div>
+            <div class="sm tm" style="margin-bottom:22px;">Phase coherence is lost — superposition decays</div>
+            <svg id="t2-chart" viewBox="0 0 540 200" style="flex:1;width:100%;"></svg>
+            <div class="mono sm tc" style="margin-top:12px;">ibm_fez median T₂ = 101 μs</div>
+          </div>
+        </div>
+        <div class="sm tm au d4" style="margin-top:26px;font-style:italic;">
+          ↳ Your circuit must finish in ≪ T₂ — otherwise quantum information is lost to noise before the computation completes.
+        </div>
+      </div>
+    </section>
+
+    <!-- ══ 05 · IBM HARDWARE ══ -->
+    <section data-label="05 IBM Hardware">
+      <div class="sh"><span class="sh-n">05</span><span class="sh-t">Background</span>
+        <div class="sh-r"></div>
+      </div>
+      <div class="sb row">
+        <div class="col col-t">
+          <div class="tr au"></div>
+          <h2 class="ttl au d1" style="margin-bottom:40px;">Heron R2: 156 qubits, sparse connectivity</h2>
+          <div class="blist au d2" style="margin-bottom:44px;">
+            <div class="bi">
+              <div class="bd"></div><span>156 physical qubits on a single chip</span>
+            </div>
+            <div class="bi">
+              <div class="bd"></div><span><strong>Heavy-hex topology</strong> — at most 3 neighbours per qubit</span>
+            </div>
+            <div class="bi">
+              <div class="bd"></div><span>Sparse coupling reduces qubit-to-qubit crosstalk</span>
+            </div>
+            <div class="bi">
+              <div class="bd"></div><span>Connectivity is fixed — circuits must be compiled to fit the graph</span>
+            </div>
+          </div>
+          <div style="display:flex;gap:18px;margin-top:auto;" class="au d3">
+            <div style="flex:1;border-radius:12px;border:1px solid var(--cL);padding:24px 18px;text-align:center;">
+              <div class="mono" style="font-size:50px;font-weight:500;">156</div>
+              <div class="lbl tm" style="margin-top:4px;">Qubits</div>
+            </div>
+            <div style="flex:1;border-radius:12px;border:1px solid var(--cL);padding:24px 18px;text-align:center;">
+              <div class="mono" style="font-size:50px;font-weight:500;">176</div>
+              <div class="lbl tm" style="margin-top:4px;">Couplings</div>
+            </div>
+            <div style="flex:1;border-radius:12px;border:1px solid var(--cL);padding:24px 18px;text-align:center;">
+              <div class="mono" style="font-size:50px;font-weight:500;">≤ 3</div>
+              <div class="lbl tm" style="margin-top:4px;">Max degree</div>
+            </div>
+          </div>
+        </div>
+        <div class="col col-f au d2" style="justify-content:center;">
+          <svg id="heavy-hex" viewBox="0 0 760 520" width="760" height="520"></svg>
+          <div class="sm tm" style="margin-top:10px;text-align:center;">Real ibm_fez coupling map — upper-left corner, 42 of 156 qubits · one heavy-hex cell shaded</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ══ 06 · ERROR TYPES ══ -->
+    <section data-label="06 Errors">
+      <div class="sh"><span class="sh-n">06</span><span class="sh-t">Background</span>
+        <div class="sh-r"></div>
+      </div>
+      <div class="sb">
+        <div class="tr au"></div>
+        <h2 class="ttl au d1" style="margin-bottom:16px;">Two sources of error</h2>
+        <div class="body tm au d2" style="margin-bottom:36px;">Recorded at every calibration — per qubit and per coupling — each a probability of something going wrong</div>
+        <div style="display:flex;gap:48px;flex:1;" class="au d3">
+          <div style="flex:1;background:var(--cG);border:1px solid var(--cL);border-radius:16px;padding:40px 48px;display:flex;flex-direction:column;">
+            <div class="h2" style="margin-bottom:18px;">Readout Error <span class="sm tm" style="font-weight:400;">· per qubit</span></div>
+            <div class="sm tm" style="margin-bottom:24px;">When you measure a qubit, the detector can give the wrong answer. You prepare |0⟩ but read "1", or vice versa. This happens at the very last step — the quantum computation may have been perfect.</div>
+            <svg id="readout-diag" viewBox="0 0 480 180" style="flex:1;width:100%;"></svg>
+            <div class="mono sm tc" style="margin-top:18px;">ibm_fez range: 0.39% – 50.4%*</div>
+          </div>
+          <div style="flex:1;background:var(--cG);border:1px solid var(--cL);border-radius:16px;padding:40px 48px;display:flex;flex-direction:column;">
+            <div class="h2" style="margin-bottom:18px;">Gate Error <span class="sm tm" style="font-weight:400;">· per coupling</span></div>
+            <div class="sm tm" style="margin-bottom:24px;">Every gate is an imperfect physical rotation. Single-qubit gates are highly accurate; two-qubit entangling gates are harder to implement and their errors dominate circuit noise as circuits grow.</div>
+            <svg id="gate-diag" viewBox="0 0 480 180" style="flex:1;width:100%;"></svg>
+            <div class="mono sm tc" style="margin-top:18px;">ibm_fez 2Q gate range: 0.14% – 100%*</div>
+          </div>
+        </div>
+        <div class="sm tm au d4" style="margin-top:24px;font-style:italic;">* extreme values (≈50% readout, 100% gate error) mark dead qubits and couplings — excluded by filtering</div>
+      </div>
+    </section>
+
+    <!-- ══ 07 · CALIBRATION DATA ══ -->
+    <section data-label="07 Calibration">
+      <div class="sh"><span class="sh-n">07</span><span class="sh-t">Background</span>
+        <div class="sh-r"></div>
+      </div>
+      <div class="sb" style="justify-content:space-between;">
+        <div class="tr au"></div>
+        <h2 class="ttl au d1" style="margin-bottom:46px;">What gets measured at every calibration</h2>
+        <div class="mcrow au d2">
+          <div class="mc">
+            <div class="mc-lbl">T₁ Relaxation</div>
+            <div class="mc-val">123 <span style="font-size:27px;color:var(--cM)">μs</span></div>
+            <div class="mc-sub">Time before the excited state spontaneously decays to ground</div>
+          </div>
+          <div class="mc">
+            <div class="mc-lbl">T₂ Dephasing</div>
+            <div class="mc-val">101 <span style="font-size:27px;color:var(--cM)">μs</span></div>
+            <div class="mc-sub">Time before phase coherence and superposition are lost</div>
+          </div>
+          <div class="mc">
+            <div class="mc-lbl">Readout Error</div>
+            <div class="mc-val">1.49<span style="font-size:27px;color:var(--cM)">%</span></div>
+            <div class="mc-sub">Probability of measuring the wrong state after preparation</div>
+          </div>
+          <div class="mc">
+            <div class="mc-lbl">2Q Gate Error</div>
+            <div class="mc-val">2.66<span style="font-size:27px;color:var(--cM)">e−3</span></div>
+            <div class="mc-sub">Probability a two-qubit entangling gate fails per operation</div>
+          </div>
+        </div>
+        <div class="body tm au d3" style="margin-top:38px;">
+          These are <strong style="color:var(--cX)">per-qubit medians</strong> across all 156 qubits on ibm_fez (snapshot: 2026-04-27).
+          IBM recalibrates roughly daily; this dataset keeps a snapshot every 3 days — values drift over time and differ significantly qubit by qubit.
+        </div>
+      </div>
+    </section>
+
+    <!-- ══ 08 · THE PROBLEM ══ -->
+    <section data-label="08 The Problem">
+      <div class="sh"><span class="sh-n">08</span><span class="sh-t">The Problem</span>
+        <div class="sh-r"></div>
+      </div>
+      <div class="sb row">
+        <div class="col col-t">
+          <div class="tr au"></div>
+          <h2 class="ttl au d1" style="margin-bottom:40px;">Not all qubits are equal</h2>
+          <div class="blist au d2" style="margin-bottom:48px;">
+            <div class="bi">
+              <div class="bd"></div><span>Fabrication variability gives each qubit unique noise characteristics</span>
+            </div>
+            <div class="bi">
+              <div class="bd"></div><span>Readout error spans <strong>0.4% – 50.4%</strong> across the same chip — a ~130× range</span>
+            </div>
+            <div class="bi">
+              <div class="bd"></div><span>Picking qubits at random is rarely close to optimal</span>
+            </div>
+          </div>
+          <div class="au d3" style="margin-top:auto;">
+            <div class="lbl tm" style="margin-bottom:13px;">Readout error range — ibm_fez (156 qubits)</div>
+            <div style="display:flex;gap:22px;align-items:center;">
+              <div>
+                <div class="mono" style="font-size:44px;font-weight:500;color:var(--cGo);">0.39%</div>
+                <div class="lbl tm">best qubit</div>
+              </div>
+              <div style="flex:1;height:4px;background:linear-gradient(90deg,var(--cGo),var(--cWa),var(--cEr));border-radius:2px;"></div>
+              <div style="text-align:right;">
+                <div class="mono" style="font-size:44px;font-weight:500;color:var(--cEr);">50.4%*</div>
+                <div class="lbl tm">worst qubit</div>
+              </div>
+            </div>
+            <div class="sm tm au d4" style="margin-top:12px;font-style:italic;">* outliers (&gt;20%) are likely defective (dead) qubits</div>
+          </div>
+        </div>
+        <div class="col col-f au d2" style="justify-content:center;align-items:flex-start;">
+          <div class="sm tm" style="margin-bottom:14px;">Readout error per qubit, sorted — ibm_fez (156 qubits)</div>
+          <svg id="err-chart" viewBox="0 0 820 620" width="820" height="620"></svg>
+        </div>
+      </div>
+    </section>
+
+    <!-- ══ 09 · THE INSIGHT ══ -->
+    <section data-label="09 The Insight">
+      <div class="sh"><span class="sh-n">09</span><span class="sh-t">The Insight</span>
+        <div class="sh-r"></div>
+      </div>
+      <div class="sb row">
+        <div class="col col-t">
+          <div class="tr au"></div>
+          <h2 class="ttl au d1" style="margin-bottom:40px;">Cherry-pick your qubits</h2>
+          <div class="blist au d2" style="margin-bottom:44px;">
+            <div class="bi">
+              <div class="bd"></div><span>An N-qubit circuit needs N <strong>connected</strong> qubits on the chip</span>
+            </div>
+            <div class="bi">
+              <div class="bd"></div><span>Find the connected subgraph with the best aggregate calibration</span>
+            </div>
+            <div class="bi">
+              <div class="bd"></div><span>No circuit changes needed — just a smarter qubit mapping</span>
+            </div>
+            <div class="bi">
+              <div class="bd"></div><span>Works across any IBM device, any calibration snapshot</span>
+            </div>
+          </div>
+          <div class="eq au d3" style="font-size:27px;margin-top:auto;">
+            cluster* ≈ argmax<br>
+            <span style="color:#6ab0cc;font-size:24px;">&#160;&#160;connected G ⊆ G_device, |G| = N</span><br>
+            <span style="color:var(--cT);">&#160;&#160;quality_score(G)</span>
+            <div style="font-size:22px;color:#6ab0cc;margin-top:10px;">approximated with a greedy search — next three slides</div>
+          </div>
+        </div>
+        <div class="col col-f au d2">
+          <svg id="cluster-diagram" viewBox="0 0 680 520" width="680" height="520"></svg>
+          <div class="sm tm" style="margin-top:10px;text-align:center;">A 6-qubit connected cluster on the real ibm_fez coupling map (illustration)</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ══ 10 · HOW IT WORKS ① FILTER ══ -->
+    <section data-label="10 How · Filter">
+      <div class="sh"><span class="sh-n">10</span><span class="sh-t">How it works · 1 of 3</span>
+        <div class="sh-r"></div>
+      </div>
+      <div class="sb row">
+        <div class="col col-t">
+          <div class="tr au"></div>
+          <h2 class="ttl au d1" style="margin-bottom:36px;">① Filter hard</h2>
+          <div class="chips au d2" style="margin-bottom:40px;">
+            <div class="chip mono">readout ≤ 12%</div>
+            <div class="chip mono">2Q error ≤ 4%</div>
+            <div class="chip mono">T₁ ≥ 100 μs</div>
+            <div class="chip mono">T₂ ≥ 50 μs</div>
+          </div>
+          <div class="blist au d3">
+            <div class="bi">
+              <div class="bd"></div><span>Qubits and couplings that miss <strong>any</strong> threshold are removed entirely — not downweighted. For the search they simply don't exist.</span>
+            </div>
+            <div class="bi">
+              <div class="bd"></div><span>A flood-fill then labels the surviving <strong>connected components</strong></span>
+            </div>
+            <div class="bi">
+              <div class="bd"></div><span>Largest component &lt; N? <strong>Fail fast</strong> — and suggest which single threshold to relax</span>
+            </div>
+          </div>
+        </div>
+        <div class="col col-f au d2" style="justify-content:center;">
+          <svg id="filter-lattice" viewBox="0 0 760 520" width="760" height="520"></svg>
+          <div class="sm tm" style="margin-top:10px;text-align:center;">Default thresholds on the real ibm_fez corner (2026-04-27): 18 of 42 qubits removed</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ══ 11 · HOW IT WORKS ② SCORE ══ -->
+    <section data-label="11 How · Score">
+      <div class="sh"><span class="sh-n">11</span><span class="sh-t">How it works · 2 of 3</span>
+        <div class="sh-r"></div>
+      </div>
+      <div class="sb" style="justify-content:space-between;">
+        <div class="tr au"></div>
+        <h2 class="ttl au d1" style="margin-bottom:18px;">② Score what survives</h2>
+        <div class="body tm au d2" style="margin-bottom:44px;max-width:1400px;">
+          Every surviving qubit and coupling gets a quality score in [0, 1] — a weighted blend of its normalized calibration metrics.
+        </div>
+        <div class="wbar-block au d3" style="margin-bottom:40px;">
+          <div class="lbl tm">Qubit quality</div>
+          <div class="wbar">
+            <div class="wseg" style="flex:40;background:#00a98b;"><span class="ws-n">40%</span><span class="ws-l">readout error</span></div>
+            <div class="wseg" style="flex:30;background:#00c9a5;"><span class="ws-n">30%</span><span class="ws-l">T₁ relaxation</span></div>
+            <div class="wseg" style="flex:30;background:#3fd9bc;"><span class="ws-n">30%</span><span class="ws-l">T₂ dephasing</span></div>
+          </div>
+        </div>
+        <div class="wbar-block au d4" style="margin-bottom:48px;">
+          <div class="lbl tm">Candidate gain — used while growing a cluster</div>
+          <div class="wbar">
+            <div class="wseg" style="flex:60;background:#1c6dd0;"><span class="ws-n">60%</span><span class="ws-l">qubit quality</span></div>
+            <div class="wseg" style="flex:40;background:#3ea8f0;"><span class="ws-n">40%</span><span class="ws-l">connecting 2Q-edge quality</span></div>
+          </div>
+        </div>
+        <div class="au d5" style="display:flex;gap:76px;align-items:flex-start;">
+          <div style="flex:1;">
+            <div class="lbl tm" style="margin-bottom:20px;">Normalized over the surviving pool — not the whole device</div>
+            <div class="norm">
+              <div class="norm-tick" style="left:50%;"></div>
+            </div>
+            <div style="display:flex;justify-content:space-between;margin-top:14px;" class="sm tm">
+              <span>0 · worst in pool</span>
+              <span class="mono" style="color:var(--cX);">missing value → 0.5 (neutral)</span>
+              <span>1 · best in pool</span>
+            </div>
+          </div>
+          <div class="sm tm" style="flex:1;line-height:1.6;">
+            Error metrics are <strong style="color:var(--cX);">inverted</strong> — low error scores high.
+            Unmeasured values score a neutral 0.5: <em>unknown is not the same as bad</em>.
+            Re-normalizing per snapshot means scores adapt as the hardware drifts.
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ══ 12 · HOW IT WORKS ③ GROW ══ -->
+    <section data-label="12 How · Grow">
+      <div class="sh"><span class="sh-n">12</span><span class="sh-t">How it works · 3 of 3</span>
+        <div class="sh-r"></div>
+      </div>
+      <div class="sb" style="justify-content:space-between;">
+        <div class="tr au"></div>
+        <h2 class="ttl au d1" style="margin-bottom:34px;">③ Grow greedily — 14 seeds, best wins</h2>
+        <div class="gpanels au d2" style="margin-bottom:40px;">
+          <div class="gpanel">
+            <svg id="grow-1" viewBox="0 0 400 240" width="370" height="222"></svg>
+            <div class="gp-cap">Seed</div>
+            <div class="gp-sub">Start from a top-quality qubit whose degree fits the topology</div>
+          </div>
+          <div class="gpanel">
+            <svg id="grow-2" viewBox="0 0 400 240" width="370" height="222"></svg>
+            <div class="gp-cap">Grow</div>
+            <div class="gp-sub">Add the frontier neighbour with the highest gain, one at a time</div>
+          </div>
+          <div class="gpanel">
+            <svg id="grow-3" viewBox="0 0 400 240" width="370" height="222"></svg>
+            <div class="gp-cap">Complete</div>
+            <div class="gp-sub">Stop at N members — short clusters are discarded, never returned</div>
+          </div>
+          <div class="gpanel">
+            <svg id="grow-4" viewBox="0 0 400 240" width="370" height="222"></svg>
+            <div class="gp-cap">Repeat × 14 seeds</div>
+            <div class="gp-sub">Keep the complete cluster with the best overall score</div>
+          </div>
+        </div>
+        <div class="topo-cards au d3">
+          <div class="topo-card">
+            <svg id="glyph-compact" viewBox="0 0 150 100" width="120" height="80"></svg>
+            <div>
+              <div class="tc-t">Compact</div>
+              <div class="tc-s">Gain counts <strong>all</strong> connecting edges — rewards dense blocks</div>
+            </div>
+          </div>
+          <div class="topo-card">
+            <svg id="glyph-linear" viewBox="0 0 150 100" width="120" height="80"></svg>
+            <div>
+              <div class="tc-t">Linear</div>
+              <div class="tc-s">−0.5 gain for branching a chain · +0.05 for extending an endpoint</div>
+            </div>
+          </div>
+          <div class="topo-card">
+            <svg id="glyph-branched" viewBox="0 0 150 100" width="120" height="80"></svg>
+            <div>
+              <div class="tc-t">Branched</div>
+              <div class="tc-s">+0.05 for forming a junction — quality still dominates</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ══ 13 · THE TOOL ══ -->
+    <section data-label="13 The Tool">
+      <div class="sh"><span class="sh-n">13</span><span class="sh-t">The Tool</span>
+        <div class="sh-r"></div>
+      </div>
+      <div class="sb row" style="gap:56px;">
+        <div class="col" style="width:560px;flex-shrink:0;">
+          <div class="tr au"></div>
+          <h2 class="ttl au d1" style="margin-bottom:40px;">One screen: filter, find, inspect</h2>
+          <div class="steps au d2" style="gap:32px;">
+            <div class="feat">
+              <div class="sn">1</div>
+              <div class="st">
+                <div class="st-m">Device & history</div>
+                <div class="st-s">3 Heron R2 backends · 178 snapshots covering 18 months — scrub time to watch the chip drift</div>
+              </div>
+            </div>
+            <div class="feat">
+              <div class="sn">2</div>
+              <div class="st">
+                <div class="st-m">Quality filters & cluster request</div>
+                <div class="st-s">The four thresholds from step ①, plus cluster size and topology — all live</div>
+              </div>
+            </div>
+            <div class="feat">
+              <div class="sn">3</div>
+              <div class="st">
+                <div class="st-m">Calibration lattice</div>
+                <div class="st-s">Qubits coloured by readout / T₁ / T₂, couplings by 2Q error; the found cluster lights up</div>
+              </div>
+            </div>
+            <div class="feat">
+              <div class="sn">4</div>
+              <div class="st">
+                <div class="st-m">Inspector</div>
+                <div class="st-s">Cluster stats vs device median; click any qubit for its full calibration record</div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="col col-f au d2" style="justify-content:center;">
+          <div class="shot-wrap" style="width:1130px;">
+            <img src="slides-app-found.png" alt="QPU Calibration Visualizer — 6-qubit cluster found on ibm_fez" width="1920" height="1080">
+            <div class="co-badge" style="left:7%;top:30%;">1</div>
+            <div class="co-badge" style="left:7%;top:72%;">2</div>
+            <div class="co-badge" style="left:47%;top:55%;">3</div>
+            <div class="co-badge" style="left:91.5%;top:14%;">4</div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ══ 14 · DEMO ══ -->
+    <section class="dk" data-label="14 Demo">
+      <div class="stripe"></div>
+      <div style="flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:26px;">
+        <div class="lbl tc au" style="letter-spacing:.24em;">LIVE DEMO</div>
+        <div class="disp au d1" style="color:var(--cW);text-align:center;line-height:1.1;font-size:92px;">
+          QPU Calibration<br>Visualizer
+        </div>
+        <div class="body au d2" style="color:#6a7d96;text-align:center;">ibm_fez · Heron R2 · 2026-04-27</div>
+        <div class="sm mono au d3" style="color:#3e5070;text-align:center;margin-top:18px;">recipe: readout ≤ 2% · 6 qubits · compact → Find best cluster</div>
+      </div>
+    </section>
+
+    <!-- ══ 15 · DEMO BACKUP (skipped in normal flow — reachable via the rail) ══ -->
+    <section data-deck-skip data-label="15 Demo Backup">
+      <div class="sh"><span class="sh-n">15</span><span class="sh-t">Demo Backup</span>
+        <div class="sh-r"></div>
+      </div>
+      <div class="sb row" style="gap:56px;">
+        <div class="col" style="width:560px;flex-shrink:0;justify-content:center;">
+          <div class="tr au"></div>
+          <h2 class="ttl au d1" style="margin-bottom:36px;">When filters are too strict, QPU explains why</h2>
+          <div class="blist au d2">
+            <div class="bi">
+              <div class="bd"></div><span>Shows the <strong>largest block</strong> that is still available</span>
+            </div>
+            <div class="bi">
+              <div class="bd"></div><span>Predicts how much each <strong>single relaxed constraint</strong> would unlock</span>
+            </div>
+            <div class="bi">
+              <div class="bd"></div><span>One click applies the suggestion and re-runs the search</span>
+            </div>
+          </div>
+        </div>
+        <div class="col col-f au d2" style="justify-content:center;">
+          <div class="shot-wrap" style="width:1130px;">
+            <img src="slides-app-relax.png" alt="QPU failure state: cannot place 12 qubits, with one-constraint relaxation suggestions" width="1920" height="1080">
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ══ 16 · RESULTS ══ -->
+    <section data-label="16 Results">
+      <div class="sh"><span class="sh-n">16</span><span class="sh-t">Results</span>
+        <div class="sh-r"></div>
+      </div>
+      <div class="sb" style="justify-content:center;">
+        <div class="tr au"></div>
+        <h2 class="ttl au d1" style="margin-bottom:14px;">6-qubit compact cluster on ibm_fez</h2>
+        <div class="mono sm tm au d2" style="margin-bottom:48px;">Q120 · Q121 · Q122 · Q123 · Q136 · Q143</div>
+        <div class="mcrow au d3" style="margin-bottom:48px;">
+          <div class="mc">
+            <div class="mc-lbl">T₁ Relaxation</div>
+            <div class="mc-val">153 <span style="font-size:27px;color:var(--cM)">μs</span></div>
+            <div class="mc-sub">vs device median 123 μs</div>
+            <div class="mc-d">▲ +24% better coherence</div>
+          </div>
+          <div class="mc">
+            <div class="mc-lbl">T₂ Dephasing</div>
+            <div class="mc-val">143 <span style="font-size:27px;color:var(--cM)">μs</span></div>
+            <div class="mc-sub">vs device median 101 μs</div>
+            <div class="mc-d">▲ +41% better coherence</div>
+          </div>
+          <div class="mc">
+            <div class="mc-lbl">Readout Error</div>
+            <div class="mc-val">1.02<span style="font-size:27px;color:var(--cM)">%</span></div>
+            <div class="mc-sub">vs device median 1.49%</div>
+            <div class="mc-d">▼ 32% lower error</div>
+          </div>
+          <div class="mc">
+            <div class="mc-lbl">2Q Gate Error</div>
+            <div class="mc-val">2.54<span style="font-size:27px;color:var(--cM)">e−3</span></div>
+            <div class="mc-sub">vs device median 2.66e−3</div>
+            <div class="mc-d">▼ 4% lower error</div>
+          </div>
+        </div>
+        <div class="body tm au d4" style="margin-bottom:22px;">
+          Better on every metric — achieved simply by choosing <em>where</em> on the chip to run.
+        </div>
+        <div class="sm mono tm au d5">reproduce live: snapshot 2026-04-27 · readout ≤ 2% · size 6 · compact → Find best cluster</div>
+      </div>
+    </section>
+
+    <!-- ══ 17 · QUESTIONS ══ -->
+    <section class="dk" data-label="17 Questions">
+      <div class="stripe"></div>
+      <div style="flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:28px;">
+        <div class="lbl tc au" style="letter-spacing:.24em;">QPU CALIBRATION VISUALIZER</div>
+        <div class="disp au d1" style="color:var(--cW);text-align:center;line-height:1.05;">
+          Thank you
+        </div>
+        <div class="h2 au d2" style="color:#8a9ab6;text-align:center;font-weight:300;">Any questions?</div>
+      </div>
+      <div style="padding:0 144px 64px;display:flex;justify-content:space-between;" class="au d3">
+        <div class="sm mono" style="color:#3e5070;">ibm_fez · Heron R2 · 2026</div>
+        <div class="sm mono" style="color:#3e5070;">github.com/nebmit/qpu</div>
+      </div>
+    </section>
+
+  </deck-stage>
+  <script>
+    /* ═══ CHART GENERATION ═══ */
+    document.addEventListener('DOMContentLoaded', () => {
+      drawT1();
+      drawT2();
+      drawHeavyHex();
+      drawErrChart();
+      drawCluster();
+      drawFilterLattice();
+      drawGrowPanels();
+      drawTopoGlyphs();
+      drawReadoutDiag();
+      drawGateDiag();
+    });
+
+    /* ── Real ibm_fez coupling-map excerpt (upper-left corner, 42 qubits) ──
+       Node positions come from static/positions.json (transposed so chains
+       run horizontally); edges from the dataset coupling map. */
+    const HEX_NODES = [
+      [0, 0, 0],
+      [1, 0, 0.066667],
+      [2, 0, 0.133333],
+      [3, 0, 0.2],
+      [4, 0, 0.266667],
+      [5, 0, 0.333333],
+      [6, 0, 0.4],
+      [7, 0, 0.466667],
+      [8, 0, 0.533333],
+      [16, 0.071429, 0.2],
+      [17, 0.071429, 0.466667],
+      [20, 0.142857, 0],
+      [21, 0.142857, 0.066667],
+      [22, 0.142857, 0.133333],
+      [23, 0.142857, 0.2],
+      [24, 0.142857, 0.266667],
+      [25, 0.142857, 0.333333],
+      [26, 0.142857, 0.4],
+      [27, 0.142857, 0.466667],
+      [28, 0.142857, 0.533333],
+      [36, 0.214286, 0.066667],
+      [37, 0.214286, 0.333333],
+      [40, 0.285714, 0],
+      [41, 0.285714, 0.066667],
+      [42, 0.285714, 0.133333],
+      [43, 0.285714, 0.2],
+      [44, 0.285714, 0.266667],
+      [45, 0.285714, 0.333333],
+      [46, 0.285714, 0.4],
+      [47, 0.285714, 0.466667],
+      [48, 0.285714, 0.533333],
+      [56, 0.357143, 0.2],
+      [57, 0.357143, 0.466667],
+      [60, 0.428571, 0],
+      [61, 0.428571, 0.066667],
+      [62, 0.428571, 0.133333],
+      [63, 0.428571, 0.2],
+      [64, 0.428571, 0.266667],
+      [65, 0.428571, 0.333333],
+      [66, 0.428571, 0.4],
+      [67, 0.428571, 0.466667],
+      [68, 0.428571, 0.533333]
+    ];
+    const HEX_EDGES = [
+      [0, 1],
+      [1, 2],
+      [2, 3],
+      [3, 4],
+      [3, 16],
+      [4, 5],
+      [5, 6],
+      [6, 7],
+      [7, 8],
+      [7, 17],
+      [16, 23],
+      [17, 27],
+      [20, 21],
+      [21, 22],
+      [21, 36],
+      [22, 23],
+      [23, 24],
+      [24, 25],
+      [25, 26],
+      [25, 37],
+      [26, 27],
+      [27, 28],
+      [36, 41],
+      [37, 45],
+      [40, 41],
+      [41, 42],
+      [42, 43],
+      [43, 44],
+      [43, 56],
+      [44, 45],
+      [45, 46],
+      [46, 47],
+      [47, 48],
+      [47, 57],
+      [56, 63],
+      [57, 67],
+      [60, 61],
+      [61, 62],
+      [62, 63],
+      [63, 64],
+      [64, 65],
+      [65, 66],
+      [66, 67],
+      [67, 68]
+    ];
+    const HEX_BRIDGES = new Set([16, 17, 36, 37, 56, 57]);
+    /* Layout: x along the chain (orig y), rows top→bottom (orig x). */
+    function hexLayout(W, H, padX, padY) {
+      const pts = new Map();
+      for (const [id, rx, cy] of HEX_NODES) {
+        pts.set(id, {
+          x: padX + cy / 0.533333 * (W - 2 * padX),
+          y: padY + rx / 0.428571 * (H - 2 * padY)
+        });
+      }
+      return pts;
+    }
+
+    /* T1 relaxation decay */
+    function drawT1() {
+      const el = document.getElementById('t1-chart');
+      if (!el) return;
+      const W = 540,
+        H = 220,
+        pl = 52,
+        pr = 14,
+        pt = 14,
+        pb = 44;
+      const cw = W - pl - pr,
+        ch = H - pt - pb,
+        tmax = 500,
+        T1 = 123;
+      let s = '';
+      const y05 = pt + 0.5 * ch;
+      s += `<line x1="${pl}" y1="${y05}" x2="${W-pr}" y2="${y05}" stroke="#dde1ec" stroke-width="1" stroke-dasharray="3 3"/>`;
+      s += `<line x1="${pl}" y1="${pt}" x2="${pl}" y2="${H-pb}" stroke="#dde1ec" stroke-width="1.5"/>`;
+      s += `<line x1="${pl}" y1="${H-pb}" x2="${W-pr}" y2="${H-pb}" stroke="#dde1ec" stroke-width="1.5"/>`;
+      s += `<text x="${pl-6}" y="${pt+4}" font-family="IBM Plex Mono" font-size="24" fill="#5a6880" text-anchor="end">1</text>`;
+      s += `<text x="${pl-6}" y="${y05+4}" font-family="IBM Plex Mono" font-size="24" fill="#5a6880" text-anchor="end">.5</text>`;
+      s += `<text x="${pl-6}" y="${H-pb+4}" font-family="IBM Plex Mono" font-size="24" fill="#5a6880" text-anchor="end">0</text>`;
+      s += `<text x="${pl+cw*250/tmax}" y="${H}" font-family="IBM Plex Mono" font-size="24" fill="#5a6880" text-anchor="middle">250μs</text>`;
+      s += `<text x="${pl+cw}" y="${H}" font-family="IBM Plex Mono" font-size="24" fill="#5a6880" text-anchor="middle">500μs</text>`;
+      const t1x = pl + (T1 / tmax) * cw;
+      s += `<line x1="${t1x}" y1="${pt}" x2="${t1x}" y2="${H-pb}" stroke="#dde1ec" stroke-width="1" stroke-dasharray="4 4"/>`;
+      s += `<text x="${t1x+3}" y="${pt+14}" font-family="IBM Plex Mono" font-size="24" fill="#5a6880">T₁</text>`;
+      const pts = [];
+      for (let i = 0; i <= 100; i++) {
+        const t = i / 100 * tmax,
+          p = Math.exp(-t / T1);
+        pts.push(`${(pl+t/tmax*cw).toFixed(1)},${(pt+(1-p)*ch).toFixed(1)}`);
+      }
+      s += `<polygon points="${pl},${H-pb} ${pts.join(' ')} ${pl+cw},${H-pb}" fill="#00c9a5" fill-opacity=".1"/>`;
+      s += `<polyline points="${pts.join(' ')}" fill="none" stroke="#00c9a5" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>`;
+      s += `<text x="16" y="${H/2}" font-family="IBM Plex Sans" font-size="24" fill="#5a6880" text-anchor="middle" transform="rotate(-90 16 ${H/2})">P(|1⟩)</text>`;
+      el.innerHTML = s;
+    }
+
+    /* T2 dephasing (Ramsey-like damped oscillation) */
+    function drawT2() {
+      const el = document.getElementById('t2-chart');
+      if (!el) return;
+      const W = 540,
+        H = 220,
+        pl = 52,
+        pr = 14,
+        pt = 14,
+        pb = 44;
+      const cw = W - pl - pr,
+        ch = H - pt - pb,
+        tmax = 500,
+        T2 = 101,
+        freq = 0.022;
+      const midY = pt + ch / 2;
+      let s = '';
+      s += `<line x1="${pl}" y1="${midY}" x2="${W-pr}" y2="${midY}" stroke="#dde1ec" stroke-width="1" stroke-dasharray="3 3"/>`;
+      s += `<line x1="${pl}" y1="${pt}" x2="${pl}" y2="${H-pb}" stroke="#dde1ec" stroke-width="1.5"/>`;
+      s += `<line x1="${pl}" y1="${H-pb}" x2="${W-pr}" y2="${H-pb}" stroke="#dde1ec" stroke-width="1.5"/>`;
+      s += `<text x="${pl-6}" y="${pt+4}" font-family="IBM Plex Mono" font-size="24" fill="#5a6880" text-anchor="end">+1</text>`;
+      s += `<text x="${pl-6}" y="${midY+4}" font-family="IBM Plex Mono" font-size="24" fill="#5a6880" text-anchor="end">0</text>`;
+      s += `<text x="${pl-6}" y="${H-pb+4}" font-family="IBM Plex Mono" font-size="24" fill="#5a6880" text-anchor="end">−1</text>`;
+      s += `<text x="${pl+cw}" y="${H}" font-family="IBM Plex Mono" font-size="24" fill="#5a6880" text-anchor="middle">500μs</text>`;
+      const t2x = pl + (T2 / tmax) * cw;
+      s += `<line x1="${t2x}" y1="${pt}" x2="${t2x}" y2="${H-pb}" stroke="#dde1ec" stroke-width="1" stroke-dasharray="4 4"/>`;
+      s += `<text x="${t2x+3}" y="${pt+14}" font-family="IBM Plex Mono" font-size="24" fill="#5a6880">T₂</text>`;
+      const ev1 = [],
+        ev2 = [];
+      for (let i = 0; i <= 80; i++) {
+        const t = i / 80 * tmax,
+          e = Math.exp(-t / T2) * 0.9,
+          x = pl + (t / tmax) * cw;
+        ev1.push(`${x.toFixed(1)},${(midY-e*ch/2).toFixed(1)}`);
+        ev2.push(`${x.toFixed(1)},${(midY+e*ch/2).toFixed(1)}`);
+      }
+      s += `<polyline points="${ev1.join(' ')}" fill="none" stroke="#3ea8f0" stroke-width="1.5" stroke-dasharray="5 3" opacity=".45"/>`;
+      s += `<polyline points="${ev2.join(' ')}" fill="none" stroke="#3ea8f0" stroke-width="1.5" stroke-dasharray="5 3" opacity=".45"/>`;
+      const osc = [];
+      for (let i = 0; i <= 250; i++) {
+        const t = i / 250 * tmax,
+          v = Math.cos(2 * Math.PI * freq * t) * Math.exp(-t / T2) * 0.9;
+        osc.push(`${(pl+(t/tmax)*cw).toFixed(1)},${(midY-v*ch/2).toFixed(1)}`);
+      }
+      s += `<polyline points="${osc.join(' ')}" fill="none" stroke="#00c9a5" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>`;
+      s += `<text x="16" y="${H/2}" font-family="IBM Plex Sans" font-size="24" fill="#5a6880" text-anchor="middle" transform="rotate(-90 16 ${H/2})">Signal</text>`;
+      el.innerHTML = s;
+    }
+
+    /* Heavy-hex topology — real ibm_fez excerpt with one 12-qubit cell shaded */
+    function drawHeavyHex() {
+      const el = document.getElementById('heavy-hex');
+      if (!el) return;
+      const pts = hexLayout(760, 520, 40, 44);
+      /* One heavy-hex unit cell: ring Q3-Q4-Q5-Q6-Q7-Q17-Q27-Q26-Q25-Q24-Q23-Q16 */
+      const RING = [3, 4, 5, 6, 7, 17, 27, 26, 25, 24, 23, 16];
+      const ringPts = RING.map(id => pts.get(id));
+      let s = '';
+      s += `<polygon points="${ringPts.map(p=>`${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(' ')}" fill="rgba(0,201,165,.09)" stroke="rgba(0,201,165,.18)" stroke-width="30" stroke-linejoin="round"/>`;
+      for (const [a, b] of HEX_EDGES) {
+        const p = pts.get(a),
+          q = pts.get(b);
+        s += `<line x1="${p.x.toFixed(1)}" y1="${p.y.toFixed(1)}" x2="${q.x.toFixed(1)}" y2="${q.y.toFixed(1)}" stroke="#c4cad8" stroke-width="2"/>`;
+      }
+      const ringSet = new Set(RING);
+      for (const [id] of HEX_NODES) {
+        const p = pts.get(id);
+        const r = HEX_BRIDGES.has(id) ? 8 : 11;
+        const inRing = ringSet.has(id);
+        s += `<circle cx="${p.x.toFixed(1)}" cy="${p.y.toFixed(1)}" r="${r}" fill="${inRing?'#bdeee2':'#e2e6f2'}" stroke="${inRing?'#00a98b':'#b0b8cc'}" stroke-width="1.5"/>`;
+      }
+      const top = pts.get(5),
+        mid = pts.get(25);
+      s += `<text x="${top.x}" y="${(top.y+mid.y)/2+8}" font-family="IBM Plex Sans" font-size="23" fill="#00a98b" text-anchor="middle">one cell · 12 qubits</text>`;
+      const last = pts.get(68);
+      s += `<text x="${last.x+24}" y="${last.y+7}" font-family="IBM Plex Sans" font-size="24" fill="#9aa4b8">···</text>`;
+      el.innerHTML = s;
+    }
+
+    /* Error distribution bar chart — real ibm_fez readout data */
+    function drawErrChart() {
+      const el = document.getElementById('err-chart');
+      if (!el) return;
+      // Real ibm_fez readout error data (156 qubits, sorted ascending, values in %)
+      const errs = [0.015625, 0.025634765625, 0.013427734375, 0.0478515625, 0.0126953125, 0.043212890625, 0.022705078125, 0.033935546875, 0.008544921875, 0.017333984375, 0.005859375, 0.06640625, 0.017333984375, 0.022216796875, 0.00439453125, 0.01806640625, 0.016845703125, 0.503662109375, 0.008544921875, 0.01171875, 0.013671875, 0.010986328125, 0.006103515625, 0.00390625, 0.01904296875, 0.020751953125, 0.010986328125, 0.018310546875, 0.008056640625, 0.01123046875, 0.00732421875, 0.015869140625, 0.029541015625, 0.018798828125, 0.01708984375, 0.041015625, 0.010498046875, 0.0146484375, 0.005126953125, 0.01171875, 0.025634765625, 0.101318359375, 0.010009765625, 0.119873046875, 0.0068359375, 0.03955078125, 0.0078125, 0.028564453125, 0.0087890625, 0.04443359375, 0.00927734375, 0.0859375, 0.01953125, 0.046630859375, 0.00390625, 0.051025390625, 0.014892578125, 0.013671875, 0.016845703125, 0.0087890625, 0.052490234375, 0.077392578125, 0.02783203125, 0.04052734375, 0.035400390625, 0.09375, 0.011474609375, 0.060546875, 0.009521484375, 0.05322265625, 0.005859375, 0.011474609375, 0.468017578125, 0.018798828125, 0.008544921875, 0.00732421875, 0.041748046875, 0.013671875, 0.025634765625, 0.015380859375, 0.014892578125, 0.0419921875, 0.00927734375, 0.218505859375, 0.0068359375, 0.011474609375, 0.00927734375, 0.070068359375, 0.011962890625, 0.023193359375, 0.0078125, 0.075439453125, 0.0078125, 0.021728515625, 0.009521484375, 0.01123046875, 0.009765625, 0.007568359375, 0.013427734375, 0.022705078125, 0.02099609375, 0.060302734375, 0.0537109375, 0.017333984375, 0.010986328125, 0.0234375, 0.00927734375, 0.0146484375, 0.013427734375, 0.019775390625, 0.009521484375, 0.040283203125, 0.008056640625, 0.100341796875, 0.008056640625, 0.005615234375, 0.042724609375, 0.0263671875, 0.010498046875, 0.048095703125, 0.0078125, 0.01513671875, 0.011474609375, 0.01220703125, 0.0205078125, 0.033203125, 0.005859375, 0.041259765625, 0.040771484375, 0.020263671875, 0.009033203125, 0.108154296875, 0.00732421875, 0.0185546875, 0.00439453125, 0.051025390625, 0.00634765625, 0.0048828125, 0.008056640625, 0.01220703125, 0.0283203125, 0.010986328125, 0.008544921875, 0.008056640625, 0.00634765625, 0.039306640625, 0.009033203125, 0.013427734375, 0.012939453125, 0.080810546875, 0.008056640625, 0.01025390625, 0.021484375, 0.026611328125, 0.005126953125, 0.01416015625]
+        .map(v => +(v * 100).toFixed(4))
+        .sort((a, b) => a - b);
+      const W = 820,
+        H = 620,
+        pl = 82,
+        pr = 80,
+        pt = 18,
+        pb = 52;
+      const cw = W - pl - pr,
+        ch = H - pt - pb,
+        n = errs.length,
+        maxE = 55;
+      const bw = Math.max(cw / n - 1, 1.5);
+      let s = '';
+      errs.forEach((e, i) => {
+        const x = pl + i * (cw / n),
+          bh = (e / maxE) * ch,
+          y = pt + ch - bh;
+        const fill = e < 3 ? '#1aaa6c' : e < 7 ? '#6dc96a' : e < 12 ? '#f0a830' : e < 22 ? '#e07830' : e < 35 ? '#e35050' : '#8b1a1a';
+        s += `<rect x="${x.toFixed(1)}" y="${y.toFixed(1)}" width="${bw.toFixed(1)}" height="${bh.toFixed(1)}" fill="${fill}" rx="1"/>`;
+      });
+      // dead node annotation
+      const deadX = pl + cw * (152 / 155);
+      const deadY = pt + ch - (50.4 / maxE) * ch - 8;
+      s += `<line x1="${deadX}" y1="${deadY+6}" x2="${deadX-30}" y2="${pt+ch-(28/maxE)*ch}" stroke="#8b1a1a" stroke-width="1.5" stroke-dasharray="3 3"/>`;
+      s += `<text x="${deadX-34}" y="${pt+ch-(29/maxE)*ch-12}" font-family="IBM Plex Sans" font-size="24" fill="#8b1a1a" text-anchor="end">dead nodes</text>`;
+      // median line
+      const medY = pt + ch - (1.49 / maxE) * ch;
+      s += `<line x1="${pl}" y1="${medY}" x2="${pl+cw}" y2="${medY}" stroke="#5a6880" stroke-width="1.5" stroke-dasharray="6 4"/>`;
+      s += `<text x="${pl+cw+5}" y="${medY+5}" font-family="IBM Plex Mono" font-size="24" fill="#5a6880">1.49%</text>`;
+      s += `<text x="${pl+cw+5}" y="${medY+34}" font-family="IBM Plex Sans" font-size="24" fill="#9aa4b8">median</text>`;
+      // axes
+      s += `<line x1="${pl}" y1="${pt}" x2="${pl}" y2="${H-pb}" stroke="#dde1ec" stroke-width="1.5"/>`;
+      s += `<line x1="${pl}" y1="${H-pb}" x2="${pl+cw}" y2="${H-pb}" stroke="#dde1ec" stroke-width="1.5"/>`;
+      for (const [v, lbl] of [
+          [0, '0%'],
+          [10, '10%'],
+          [20, '20%'],
+          [30, '30%'],
+          [40, '40%'],
+          [50, '50%']
+        ]) {
+        const y = pt + ch - (v / maxE) * ch;
+        s += `<line x1="${pl-4}" y1="${y}" x2="${pl}" y2="${y}" stroke="#dde1ec"/>`;
+        s += `<text x="${pl-8}" y="${y+9}" font-family="IBM Plex Mono" font-size="24" fill="#5a6880" text-anchor="end">${lbl}</text>`;
+      }
+      s += `<text x="${pl+cw/2}" y="${H-6}" font-family="IBM Plex Sans" font-size="24" fill="#5a6880" text-anchor="middle">Qubits (sorted by readout error)</text>`;
+      s += `<text x="16" y="${H/2}" font-family="IBM Plex Sans" font-size="24" fill="#5a6880" text-anchor="middle" transform="rotate(-90 16 ${H/2})">Readout error</text>`;
+      el.innerHTML = s;
+    }
+
+    /* Cluster diagram (insight slide) — illustrative cluster on the real excerpt */
+    function drawCluster() {
+      const el = document.getElementById('cluster-diagram');
+      if (!el) return;
+      const pts = hexLayout(680, 520, 34, 40);
+      /* Illustrative 6-qubit compact cluster: Q43-Q44-Q45 + bridge Q56 + Q63-Q64 */
+      const CL = new Set([43, 44, 45, 56, 63, 64]);
+      let s = '';
+      for (const [a, b] of HEX_EDGES) {
+        const p = pts.get(a),
+          q = pts.get(b);
+        const ic = CL.has(a) && CL.has(b);
+        s += `<line x1="${p.x.toFixed(1)}" y1="${p.y.toFixed(1)}" x2="${q.x.toFixed(1)}" y2="${q.y.toFixed(1)}" stroke="${ic?'#00c9a5':'#d4d9e8'}" stroke-width="${ic?4:1.5}"/>`;
+      }
+      for (const [id] of HEX_NODES) {
+        const p = pts.get(id);
+        const r = HEX_BRIDGES.has(id) ? (CL.has(id) ? 9 : 7) : (CL.has(id) ? 12 : 10);
+        s += CL.has(id) ?
+          `<circle cx="${p.x.toFixed(1)}" cy="${p.y.toFixed(1)}" r="${r}" fill="#00c9a5" stroke="white" stroke-width="2.5"/>` :
+          `<circle cx="${p.x.toFixed(1)}" cy="${p.y.toFixed(1)}" r="${r}" fill="#eaedf5" stroke="#b8bfce" stroke-width="1.5" opacity=".55"/>`;
+      }
+      el.innerHTML = s;
+    }
+
+    /* Filter lattice (how it works ①) — real pass/fail under default thresholds.
+       DEAD = window qubits failing readout ≤ 12% / T₁ ≥ 100 μs / T₂ ≥ 50 μs on
+       the 2026-04-27 snapshot; DEAD_E = couplings over the 4% 2Q ceiling;
+       COMP = the largest surviving connected component. */
+    function drawFilterLattice() {
+      const el = document.getElementById('filter-lattice');
+      if (!el) return;
+      const pts = hexLayout(760, 520, 40, 44);
+      const DEAD = new Set([0, 7, 8, 17, 21, 24, 40, 42, 44, 45, 46, 47, 48, 57, 60, 62, 63, 66]);
+      const DEAD_E = new Set(['24-25', '27-28', '63-64']);
+      const COMP = [1, 2, 3, 4, 5, 6, 16, 22, 23];
+      const compSet = new Set(COMP);
+      let s = '';
+      /* soft hull around the largest surviving block */
+      const hull = convexHull(COMP.map(id => pts.get(id)));
+      const hullStr = hull.map(p => `${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(' ');
+      s += `<polygon points="${hullStr}" fill="rgba(0,201,165,.08)" stroke="rgba(0,201,165,.16)" stroke-width="52" stroke-linejoin="round"/>`;
+      s += `<polygon points="${hullStr}" fill="none" stroke="#00a98b" stroke-width="2" stroke-dasharray="8 6" stroke-linejoin="round"/>`;
+      for (const [a, b] of HEX_EDGES) {
+        const p = pts.get(a),
+          q = pts.get(b);
+        const deadE = DEAD_E.has(`${a}-${b}`);
+        const dead = DEAD.has(a) || DEAD.has(b) || deadE;
+        const inComp = compSet.has(a) && compSet.has(b);
+        s += `<line x1="${p.x.toFixed(1)}" y1="${p.y.toFixed(1)}" x2="${q.x.toFixed(1)}" y2="${q.y.toFixed(1)}" stroke="${inComp?'#00c9a5':dead?'#d8dce8':'#aeb6c9'}" stroke-width="${inComp?3.5:1.8}" opacity="${dead?0.6:1}"${deadE?' stroke-dasharray="5 5"':''}/>`;
+      }
+      for (const [id] of HEX_NODES) {
+        const p = pts.get(id);
+        const dead = DEAD.has(id);
+        const inComp = compSet.has(id);
+        const r = HEX_BRIDGES.has(id) ? 8 : 11;
+        const fill = dead ? '#eef0f6' : inComp ? '#00c9a5' : '#9fb6cf';
+        const stroke = dead ? '#aab1c2' : inComp ? '#ffffff' : '#7d96b3';
+        s += `<circle cx="${p.x.toFixed(1)}" cy="${p.y.toFixed(1)}" r="${r}" fill="${fill}" stroke="${stroke}" stroke-width="${inComp?2.5:1.5}"/>`;
+        if (dead) {
+          s += `<line x1="${p.x-7}" y1="${p.y-7}" x2="${p.x+7}" y2="${p.y+7}" stroke="#9aa2b5" stroke-width="2.2"/>`;
+          s += `<line x1="${p.x+7}" y1="${p.y-7}" x2="${p.x-7}" y2="${p.y+7}" stroke="#9aa2b5" stroke-width="2.2"/>`;
+        }
+      }
+      const lab = pts.get(4);
+      s += `<text x="${lab.x}" y="${lab.y-40}" font-family="IBM Plex Sans" font-size="23" fill="#00a98b" text-anchor="middle" stroke="#ffffff" stroke-width="8" paint-order="stroke">largest surviving block · 9Q</text>`;
+      /* legend */
+      s += `<circle cx="56" cy="504" r="9" fill="#00c9a5" stroke="#fff" stroke-width="2"/><text x="74" y="511" font-size="22" font-family="IBM Plex Sans" fill="#5a6880">largest block</text>`;
+      s += `<circle cx="260" cy="504" r="9" fill="#9fb6cf" stroke="#7d96b3" stroke-width="1.5"/><text x="278" y="511" font-size="22" font-family="IBM Plex Sans" fill="#5a6880">passes, smaller block</text>`;
+      s += `<circle cx="560" cy="504" r="9" fill="#eef0f6" stroke="#aab1c2" stroke-width="1.5"/><line x1="555" y1="499" x2="565" y2="509" stroke="#9aa2b5" stroke-width="2"/><line x1="565" y1="499" x2="555" y2="509" stroke="#9aa2b5" stroke-width="2"/><text x="578" y="511" font-size="22" font-family="IBM Plex Sans" fill="#5a6880">removed</text>`;
+      el.innerHTML = s;
+
+      function convexHull(points) {
+        const p = [...points].sort((a, b) => a.x - b.x || a.y - b.y);
+        const cross = (o, a, b) => (a.x - o.x) * (b.y - o.y) - (a.y - o.y) * (b.x - o.x);
+        const lo = [];
+        for (const pt of p) {
+          while (lo.length >= 2 && cross(lo[lo.length - 2], lo[lo.length - 1], pt) <= 0) lo.pop();
+          lo.push(pt);
+        }
+        const up = [];
+        for (const pt of p.reverse()) {
+          while (up.length >= 2 && cross(up[up.length - 2], up[up.length - 1], pt) <= 0) up.pop();
+          up.push(pt);
+        }
+        return lo.slice(0, -1).concat(up.slice(0, -1));
+      }
+    }
+
+    /* Greedy growth sequence (how it works ③) — four stages on a mini patch */
+    function drawGrowPanels() {
+      /* Mini heavy-hex patch: two rows of five + two bridges */
+      const N = {
+        a0: [44, 56],
+        a1: [122, 56],
+        a2: [200, 56],
+        a3: [278, 56],
+        a4: [356, 56],
+        c0: [122, 128],
+        c1: [278, 128],
+        b0: [44, 200],
+        b1: [122, 200],
+        b2: [200, 200],
+        b3: [278, 200],
+        b4: [356, 200]
+      };
+      const E = [
+        ['a0', 'a1'],
+        ['a1', 'a2'],
+        ['a2', 'a3'],
+        ['a3', 'a4'],
+        ['b0', 'b1'],
+        ['b1', 'b2'],
+        ['b2', 'b3'],
+        ['b3', 'b4'],
+        ['a1', 'c0'],
+        ['c0', 'b1'],
+        ['a3', 'c1'],
+        ['c1', 'b3']
+      ];
+      const BR = new Set(['c0', 'c1']);
+      const adj = {};
+      for (const [a, b] of E) {
+        (adj[a] = adj[a] || []).push(b);
+        (adj[b] = adj[b] || []).push(a);
+      }
+      const draw = (id, members, opts = {}) => {
+        const el = document.getElementById(id);
+        if (!el) return;
+        const mem = new Set(members);
+        const frontier = new Set();
+        for (const m of members)
+          for (const nb of adj[m] || [])
+            if (!mem.has(nb)) frontier.add(nb);
+        let s = '';
+        for (const [a, b] of E) {
+          const ic = mem.has(a) && mem.has(b);
+          s += `<line x1="${N[a][0]}" y1="${N[a][1]}" x2="${N[b][0]}" y2="${N[b][1]}" stroke="${ic?'#00c9a5':'#d4d9e8'}" stroke-width="${ic?4:1.5}"/>`;
+        }
+        for (const k of Object.keys(N)) {
+          const [x, y] = N[k];
+          const r = BR.has(k) ? 8 : 11;
+          if (mem.has(k)) {
+            s += `<circle cx="${x}" cy="${y}" r="${r+1}" fill="#00c9a5" stroke="white" stroke-width="2.5"/>`;
+          } else if (frontier.has(k) && opts.showFrontier) {
+            s += `<circle cx="${x}" cy="${y}" r="${r}" fill="#eaf9f5" stroke="#00a98b" stroke-width="2" stroke-dasharray="4 4"/>`;
+          } else {
+            s += `<circle cx="${x}" cy="${y}" r="${r}" fill="#eaedf5" stroke="#b8bfce" stroke-width="1.5" opacity=".6"/>`;
+          }
+        }
+        if (opts.pick) {
+          const [x, y] = N[opts.pick];
+          s += `<text x="${x-16}" y="${y+38}" font-family="IBM Plex Mono" font-size="20" fill="#00a98b" text-anchor="end">best gain →</text>`;
+        }
+        if (opts.badge) {
+          s += `<rect x="248" y="6" width="146" height="36" rx="18" fill="#070e1c"/>`;
+          s += `<text x="321" y="30" font-family="IBM Plex Mono" font-size="20" fill="#00c9a5" text-anchor="middle">${opts.badge}</text>`;
+        }
+        el.innerHTML = s;
+      };
+      draw('grow-1', ['a2'], {
+        showFrontier: true
+      });
+      draw('grow-2', ['a2', 'a3', 'c1'], {
+        showFrontier: true,
+        pick: 'b3'
+      });
+      draw('grow-3', ['a2', 'a3', 'c1', 'b3', 'b2', 'b4'], {
+        badge: '6 / 6 ✓'
+      });
+      draw('grow-4', ['a2', 'a3', 'c1', 'b3', 'b2', 'b4'], {
+        badge: 'score .81 ★'
+      });
+    }
+
+    /* Small topology glyphs for the three nudge cards */
+    function drawTopoGlyphs() {
+      const T = '#00c9a5';
+      const dot = (x, y) => `<circle cx="${x}" cy="${y}" r="8" fill="${T}" opacity=".85"/>`;
+      const ln = (a, b) => `<line x1="${a[0]}" y1="${a[1]}" x2="${b[0]}" y2="${b[1]}" stroke="${T}" stroke-width="2.5" opacity=".75"/>`;
+      const set = (id, s) => {
+        const el = document.getElementById(id);
+        if (el) el.innerHTML = s;
+      };
+      /* compact: 2×3 block */
+      {
+        const n = [
+          [30, 30],
+          [75, 30],
+          [120, 30],
+          [30, 72],
+          [75, 72],
+          [120, 72]
+        ];
+        let s = '';
+        [
+          [0, 1],
+          [1, 2],
+          [3, 4],
+          [4, 5],
+          [0, 3],
+          [1, 4],
+          [2, 5]
+        ].forEach(([a, b]) => s += ln(n[a], n[b]));
+        n.forEach(p => s += dot(p[0], p[1]));
+        set('glyph-compact', s);
+      }
+      /* linear: chain */
+      {
+        const n = Array.from({
+          length: 5
+        }, (_, i) => [22 + i * 27, 51]);
+        let s = '';
+        for (let i = 0; i < 4; i++) s += ln(n[i], n[i + 1]);
+        n.forEach(p => s += dot(p[0], p[1]));
+        set('glyph-linear', s);
+      }
+      /* branched: small tree */
+      {
+        const n = [
+          [75, 24],
+          [45, 58],
+          [105, 58],
+          [27, 88],
+          [63, 88],
+          [105, 88]
+        ];
+        let s = '';
+        [
+          [0, 1],
+          [0, 2],
+          [1, 3],
+          [1, 4],
+          [2, 5]
+        ].forEach(([a, b]) => s += ln(n[a], n[b]));
+        n.forEach(p => s += dot(p[0], p[1]));
+        set('glyph-branched', s);
+      }
+    }
+
+    /* Readout error circuit diagram */
+    function drawReadoutDiag() {
+      const el = document.getElementById('readout-diag');
+      if (!el) return;
+      let s = '';
+      // Qubit label + wire
+      s += `<text x="38" y="96" font-family="IBM Plex Mono" font-size="24" fill="#14202e" text-anchor="middle">|0⟩</text>`;
+      s += `<line x1="60" y1="90" x2="158" y2="90" stroke="#9aa4b8" stroke-width="2"/>`;
+      // Measurement box
+      s += `<rect x="158" y="64" width="68" height="52" rx="10" fill="#dde1ec" stroke="#9aa4b8" stroke-width="1.5"/>`;
+      s += `<text x="192" y="97" font-family="IBM Plex Mono" font-size="28" fill="#14202e" text-anchor="middle">M</text>`;
+      // Wire after M
+      s += `<line x1="226" y1="90" x2="256" y2="90" stroke="#9aa4b8" stroke-width="2"/>`;
+      s += `<circle cx="256" cy="90" r="4" fill="#9aa4b8"/>`;
+      // Correct branch → 0
+      s += `<line x1="256" y1="90" x2="256" y2="136" stroke="#9aa4b8" stroke-width="1.5"/>`;
+      s += `<line x1="256" y1="136" x2="340" y2="136" stroke="#1aaa6c" stroke-width="3"/>`;
+      s += `<text x="350" y="143" font-family="IBM Plex Mono" font-size="28" fill="#1aaa6c">0</text>`;
+      s += `<text x="390" y="143" font-family="IBM Plex Sans" font-size="24" fill="#5a6880">1 − p</text>`;
+      // Error branch → 1
+      s += `<line x1="256" y1="90" x2="256" y2="44" stroke="#9aa4b8" stroke-width="1.5"/>`;
+      s += `<line x1="256" y1="44" x2="340" y2="44" stroke="#e35050" stroke-width="3" stroke-dasharray="8 4"/>`;
+      s += `<text x="350" y="51" font-family="IBM Plex Mono" font-size="28" fill="#e35050">1</text>`;
+      s += `<text x="390" y="51" font-family="IBM Plex Sans" font-size="24" fill="#e35050">p  ← error</text>`;
+      // Prep label
+      s += `<text x="110" y="162" font-family="IBM Plex Sans" font-size="24" fill="#9aa4b8" text-anchor="middle" font-style="italic">prepared |0⟩</text>`;
+      el.innerHTML = s;
+    }
+
+    /* Gate error diagram */
+    function drawGateDiag() {
+      const el = document.getElementById('gate-diag');
+      if (!el) return;
+      const cx = 130,
+        cy = 90,
+        r = 65;
+      let s = '';
+      // Circle (Bloch equatorial plane)
+      s += `<circle cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="#d0d8e8" stroke-width="1.5"/>`;
+      // Start state dot (east)
+      s += `<circle cx="${cx+r}" cy="${cy}" r="7" fill="#14202e"/>`;
+      // Target rotation: 52°
+      const ta = 52 * Math.PI / 180;
+      const tx = (cx + r * Math.cos(-ta)).toFixed(1),
+        ty = (cy + r * Math.sin(-ta)).toFixed(1);
+      s += `<line x1="${cx}" y1="${cy}" x2="${tx}" y2="${ty}" stroke="#9aa4b8" stroke-width="2" stroke-dasharray="6 3"/>`;
+      s += `<circle cx="${tx}" cy="${ty}" r="7" fill="none" stroke="#9aa4b8" stroke-width="2" stroke-dasharray="3 2"/>`;
+      // Actual rotation: 38° (fell short — the error)
+      const aa = 38 * Math.PI / 180;
+      const ax = (cx + r * Math.cos(-aa)).toFixed(1),
+        ay = (cy + r * Math.sin(-aa)).toFixed(1);
+      s += `<line x1="${cx}" y1="${cy}" x2="${ax}" y2="${ay}" stroke="#00c9a5" stroke-width="3"/>`;
+      s += `<circle cx="${ax}" cy="${ay}" r="7" fill="#00c9a5"/>`;
+      // Error arc
+      const r2 = r * 0.45;
+      const ex1 = (cx + r2 * Math.cos(-aa)).toFixed(1),
+        ey1 = (cy + r2 * Math.sin(-aa)).toFixed(1);
+      const ex2 = (cx + r2 * Math.cos(-ta)).toFixed(1),
+        ey2 = (cy + r2 * Math.sin(-ta)).toFixed(1);
+      s += `<path d="M ${ex1} ${ey1} A ${r2} ${r2} 0 0 1 ${ex2} ${ey2}" fill="none" stroke="#e35050" stroke-width="2.5"/>`;
+      s += `<text x="${(cx+r2*1.25*Math.cos(-(aa+ta)/2)).toFixed(0)}" y="${(cy+r2*1.25*Math.sin(-(aa+ta)/2)+6).toFixed(0)}" font-family="IBM Plex Sans" font-size="24" fill="#e35050" text-anchor="middle">Δ</text>`;
+      // Legend
+      s += `<text x="252" y="40" font-family="IBM Plex Sans" font-size="24" fill="#14202e" font-weight="500">1-qubit gate</text>`;
+      s += `<text x="252" y="72" font-family="IBM Plex Mono" font-size="24" fill="#1aaa6c">typ. ~0.05 – 0.3%</text>`;
+      s += `<line x1="246" y1="94" x2="474" y2="94" stroke="#dde1ec" stroke-width="1"/>`;
+      s += `<text x="252" y="120" font-family="IBM Plex Sans" font-size="24" fill="#14202e" font-weight="500">2-qubit gate</text>`;
+      s += `<text x="252" y="154" font-family="IBM Plex Mono" font-size="24" fill="#f0a830">typ. ~0.1 – 1%+</text>`;
+      el.innerHTML = s;
+    }
+  </script>
+
+  <script>
+    /* PDF export helper — only runs when explicitly requested via ?print
+       (e.g. slides.html?print). A bare load never opens the print dialog. */
+    (function() {
+      if (!new URLSearchParams(location.search).has('print')) return;
+
+      function waitAndPrint() {
+        document.fonts.ready.then(function() {
+          setTimeout(function() {
+            window.print();
+          }, 800);
+        });
+      }
+      if (document.readyState === 'complete') {
+        waitAndPrint();
+      } else {
+        window.addEventListener('load', waitAndPrint);
+      }
+    })();
+  </script>
+</body>
+
+</html>
