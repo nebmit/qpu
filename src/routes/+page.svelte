@@ -261,6 +261,7 @@
                 >
                     <div
                         class="loader-fill h-full rounded-full transition-none"
+                        class:indeterminate={bytesTotal === null && bytesReceived > 0}
                         style="width:{(smoothProgress.current * 100).toFixed(
                             1,
                         )}%; background:var(--accent)"
@@ -281,9 +282,11 @@
                         class="text-[11px] font-mono"
                         style="color:var(--text-3)"
                     >
-                        {bytesTotal
-                            ? Math.round((bytesReceived / bytesTotal) * 100)
-                            : Math.round(smoothProgress.current * 100)}%
+                        {#if bytesTotal === null}
+                            —
+                        {:else}
+                            {Math.round((bytesReceived / bytesTotal) * 100)}%
+                        {/if}
                     </span>
                 </div>
             </div>
@@ -573,6 +576,14 @@
 
     .loader-bar-wrap {
         width: 14rem;
+    }
+    @keyframes indeterminate-slide {
+        0% { transform: translateX(-100%); }
+        100% { transform: translateX(calc(100% / 0.3)); }
+    }
+    .loader-fill.indeterminate {
+        width: 30% !important;
+        animation: indeterminate-slide 1.4s var(--ease-in-out, ease-in-out) infinite;
     }
     .loader-track {
         transform-origin: center;

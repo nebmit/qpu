@@ -7,7 +7,7 @@ function variationOf(values: number[]): number | null {
     if (values.length < 2) return null;
     const mean = values.reduce((s, v) => s + v, 0) / values.length;
     if (mean === 0) return null;
-    const variance = values.reduce((s, v) => s + (v - mean) ** 2, 0) / values.length;
+    const variance = values.reduce((s, v) => s + (v - mean) ** 2, 0) / (values.length - 1);
     return Math.sqrt(variance) / Math.abs(mean);
 }
 

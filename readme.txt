@@ -14,7 +14,7 @@ docker build -t qpu . && docker run -p 3000:3000 qpu
 Alternatively:
 npm install
 npm run dev
-# Open http://localhost:3000
+# Open http://localhost:5173
 
 Source of Data:
 IBM Qiskit Runtime REST API

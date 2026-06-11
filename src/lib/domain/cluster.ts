@@ -48,6 +48,7 @@ export type ClusterResult = {
     requested: number;
     maxComponent: number;
     allowedCount: number;
+    reason: 'ok' | 'region-too-small' | 'topology-unplaceable';
 };
 
 function buildAdj(
@@ -142,7 +143,7 @@ export function findCluster(
 
     const total = (connRules.endpoint || 0) + (connRules.chain || 0) + (connRules.junction || 0);
     if (total === 0) {
-        return { cluster: [], requested: 0, maxComponent: 0, allowedCount: allowed.size };
+        return { cluster: [], requested: 0, maxComponent: 0, allowedCount: allowed.size, reason: 'ok' };
     }
     const ids = [...allowed];
     const needed = Math.min(total, ids.length);
@@ -151,7 +152,7 @@ export function findCluster(
     const maxComponent = largestComp.length;
 
     if (maxComponent < needed) {
-        return { cluster: [], requested: total, maxComponent, allowedCount: ids.length };
+        return { cluster: [], requested: total, maxComponent, allowedCount: ids.length, reason: 'region-too-small' };
     }
 
     const mode: Topology =
@@ -251,9 +252,9 @@ export function findCluster(
         }
     }
     if (!best || best.length !== needed) {
-        return { cluster: [], requested: total, maxComponent, allowedCount: ids.length };
+        return { cluster: [], requested: total, maxComponent, allowedCount: ids.length, reason: 'topology-unplaceable' };
     }
-    return { cluster: best, requested: total, maxComponent, allowedCount: ids.length };
+    return { cluster: best, requested: total, maxComponent, allowedCount: ids.length, reason: 'ok' };
 }
 
 export function qualifyQubits(filters: ClusterFilters, qubits: UiQubit[]) {

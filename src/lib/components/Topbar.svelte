@@ -55,6 +55,7 @@
                         class="seg-btn {dashboardState.metricMode === m.value
                             ? 'on'
                             : ''}"
+                        aria-pressed={dashboardState.metricMode === m.value}
                         onclick={() => (dashboardState.metricMode = m.value)}
                     >
                         {m.label}

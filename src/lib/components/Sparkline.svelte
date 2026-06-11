@@ -24,7 +24,7 @@
         const spread = hi - lo || 1;
         const n = values.length;
         return values.map((v: number | null, i: number) =>
-            v == null
+            typeof v !== "number" || !Number.isFinite(v)
                 ? null
                 : {
                       x:

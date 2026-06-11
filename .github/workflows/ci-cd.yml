@@ -10,16 +10,23 @@ env:
   REGISTRY: ghcr.io
   IMAGE_NAME: ${{ github.repository }}
 
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: false
+
 jobs:
   test:
     runs-on: ubuntu-latest
-    
+
+    permissions:
+      contents: read
+
     steps:
     - name: Checkout code
-      uses: actions/checkout@v6
+      uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
 
     - name: Setup Node.js
-      uses: actions/setup-node@v6
+      uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6
       with:
         node-version: '24'
         cache: 'npm'
@@ -49,23 +56,21 @@ jobs:
     permissions:
       contents: read
       packages: write
-      security-events: write
-      actions: read
 
     steps:
     - name: Checkout code
-      uses: actions/checkout@v6    
-    
+      uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+
     - name: Set up QEMU
-      uses: docker/setup-qemu-action@v3
+      uses: docker/setup-qemu-action@c7c53464625b32c7a7e944ae62b3e17d2b600130 # v3
       with:
         platforms: arm64
 
     - name: Set up Docker Buildx
-      uses: docker/setup-buildx-action@v4
+      uses: docker/setup-buildx-action@d7f5e7f509e45cec5c76c4d5afdd7de93d0b3df5 # v4
 
     - name: Log in to Container Registry
-      uses: docker/login-action@v4
+      uses: docker/login-action@650006c6eb7dba73a995cc03b0b2d7f5ca915bee # v4
       with:
         registry: ${{ env.REGISTRY }}
         username: ${{ github.actor }}
@@ -73,7 +78,7 @@ jobs:
 
     - name: Extract metadata
       id: meta
-      uses: docker/metadata-action@v6
+      uses: docker/metadata-action@80c7e94dd9b9319bd5eb7a0e0fe9291e23a2a2e9 # v6
       with:
         images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
         tags: |
@@ -91,13 +96,17 @@ jobs:
           # Fallback: extract just the tag part after the last :
           DEPLOYMENT_TAG=$(echo "$TAGS" | head -1 | sed 's/.*://')
         fi
+        if [ -z "$DEPLOYMENT_TAG" ]; then
+          echo "::error::Could not determine deployment tag from metadata output"
+          exit 1
+        fi
         echo "version=$DEPLOYMENT_TAG" >> $GITHUB_OUTPUT
         echo "Deployment tag: $DEPLOYMENT_TAG"
         echo "All generated tags: $TAGS"
 
     - name: Build and push Docker image
       id: build
-      uses: docker/build-push-action@v7
+      uses: docker/build-push-action@f9f3042f7e2789586610d6e8b85c8f03e5195baf # v7
       with:
         context: .
         platforms: linux/arm64
@@ -112,6 +121,9 @@ jobs:
     if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
 
+    permissions:
+      contents: read
+
     steps:
       - name: Debug deployment info
         run: |
@@ -121,7 +133,7 @@ jobs:
           echo "Image by digest: ${{ needs.build-and-push.outputs.registry }}/${{ needs.build-and-push.outputs.image-name }}@${{ needs.build-and-push.outputs.image-digest }}"
       
       - name: Notify infra repo
-        uses: peter-evans/repository-dispatch@v4
+        uses: peter-evans/repository-dispatch@28959ce8df70de7be546dd1250a005dd32156697 # v4
         with:
           repository: nebmit/infra
           event-type: app-deploy

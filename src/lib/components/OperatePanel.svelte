@@ -389,6 +389,7 @@
                     class="seg-btn {dashboardState.topology === t.value
                         ? 'on'
                         : ''}"
+                    aria-pressed={dashboardState.topology === t.value}
                     onclick={() => {
                         dashboardState.pauseTimeline();
                         dashboardState.topology = t.value;

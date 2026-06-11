@@ -1,5 +1,5 @@
 <script lang="ts">
-    import { onDestroy } from "svelte";
+    import { onDestroy, untrack } from "svelte";
     import { Tween } from "svelte/motion";
     import {
         DUR,
@@ -259,7 +259,9 @@
     }
 
     $effect(() => {
-        startReveal();
+        const key = [...clSet].sort((a, b) => a - b).join(',');
+        void key;
+        untrack(() => startReveal());
     });
 
     onDestroy(() => {
@@ -430,7 +432,6 @@
                                 : baseOpacity}
                         stroke-linecap="round"
                     />
-                    <!-- svelte-ignore a11y_no_static_element_interactions -->
                     <line
                         class="edge-hit"
                         x1={a.x}
@@ -441,12 +442,24 @@
                         stroke-width={9}
                         stroke-linecap="round"
                         pointer-events={interactive ? "stroke" : "none"}
+                        tabindex={interactive ? 0 : -1}
+                        role="button"
+                        aria-label="Edge Q{e.source} to Q{e.target}"
                         onmouseenter={() =>
                             (dashboardState.hoveredEdge = {
                                 source: e.source,
                                 target: e.target,
                             })}
                         onmouseleave={() => (dashboardState.hoveredEdge = null)}
+                        onfocus={() =>
+                            (dashboardState.hoveredEdge = {
+                                source: e.source,
+                                target: e.target,
+                            })}
+                        onblur={() => (dashboardState.hoveredEdge = null)}
+                        onkeydown={(ev) => {
+                            if (ev.key === 'Escape') dashboardState.hoveredEdge = null;
+                        }}
                     />
                 {/if}
             {/each}
@@ -613,6 +626,10 @@
     }
     .qnode:focus-visible .focus-ring {
         opacity: 1;
+    }
+
+    .edge-hit:focus-visible {
+        outline: none;
     }
 
     .entry-animating .entry-node {

@@ -44,6 +44,7 @@ export class DashboardState {
     clusterRequested = $state(0);
     clusterError = $state<string | null>(null);
     findFailed = $state(false);
+    findFailReason = $state<'region-too-small' | 'topology-unplaceable' | null>(null);
     nearestCluster = $state<number[]>([]);
     relaxSuggestions = $state<RelaxSuggestions | null>(null);
     hoveredId = $state<number | null>(null);
@@ -161,6 +162,7 @@ export class DashboardState {
         this.clusterError = null;
         this.clusterRequested = 0;
         this.findFailed = false;
+        this.findFailReason = null;
         this.nearestCluster = [];
         this.relaxSuggestions = null;
         this.selectedId = null;
@@ -259,6 +261,7 @@ export class DashboardState {
         if (result.cluster.length < 2 || internalLinks === 0) {
             this.cluster = [];
             this.findFailed = true;
+            this.findFailReason = result.reason === 'ok' ? 'region-too-small' : result.reason;
             const filters = this.clusterFilters();
             const qualified = qualifyQubits(filters, this.snap.qubits);
             this.nearestCluster = largestComponent(
@@ -276,6 +279,7 @@ export class DashboardState {
 
         this.cluster = result.cluster;
         this.findFailed = false;
+        this.findFailReason = null;
         this.nearestCluster = [];
         this.relaxSuggestions = null;
     }
@@ -316,7 +320,7 @@ export class DashboardState {
 
     applyDataset(dataset: Dataset) {
         this.pauseTimeline();
-        this.totalQubits = dataset.meta?.n_qubits || TOTAL_QUBITS;
+        this.totalQubits = dataset.meta?.n_qubits ?? TOTAL_QUBITS;
         const couplingMap = dataset.coupling_map || {};
         const snapshotsByDevice: Record<string, UiSnapshot[]> = {};
         const baseEdgesByDevice: Record<string, UiEdge[]> = {};

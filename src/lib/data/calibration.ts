@@ -21,7 +21,7 @@ async function fetchJson<T>(url: string, onProgress?: ProgressCallback): Promise
         if (done) break;
         chunks.push(value);
         received += value.length;
-        if (total) onProgress(received / total, received, total);
+        onProgress(total ? received / total : 0, received, total);
     }
 
     const all = new Uint8Array(received);

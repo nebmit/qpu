@@ -195,7 +195,10 @@
     }
 
     function onKey(e: KeyboardEvent) {
-        if (e.key === "Escape") {
+        if (e.key === "Tab") {
+            e.preventDefault();
+            return;
+        } else if (e.key === "Escape") {
             e.preventDefault();
             close();
         } else if (e.key === "ArrowDown") {

@@ -265,21 +265,40 @@
                     </svg>
                 </div>
                 <div>
-                    <div class="cl-fail-h">
-                        Can't place {requestedSize} qubits
-                    </div>
-                    <div class="cl-fail-sub">
-                        Largest connected region available:
-                        <b>{dashboardState.nearestCluster.length}Q</b>
-                    </div>
+                    {#if dashboardState.findFailReason === 'topology-unplaceable'}
+                        <div class="cl-fail-h">
+                            Can't arrange {requestedSize} qubits as a {dashboardState.topology} cluster
+                        </div>
+                        <div class="cl-fail-sub">
+                            Qualifying region: <b>{dashboardState.nearestCluster.length}Q</b>
+                            — the requested arrangement doesn't fit
+                        </div>
+                    {:else}
+                        <div class="cl-fail-h">
+                            Can't place {requestedSize} qubits
+                        </div>
+                        <div class="cl-fail-sub">
+                            Largest connected region available:
+                            <b>{dashboardState.nearestCluster.length}Q</b>
+                        </div>
+                    {/if}
                 </div>
             </div>
 
-            <p class="cl-fail-p">
+            {#if dashboardState.findFailReason === 'topology-unplaceable'}
+                <p class="cl-fail-p">
+                    A <b>{dashboardState.nearestCluster.length}Q</b> connected region
+                    qualifies, but no <b>{dashboardState.topology}</b> arrangement of
+                    {requestedSize} qubits fits within it. Lower the cluster size or
+                    switch to a different topology.
+                </p>
+            {:else}
+                <p class="cl-fail-p">
                     Only <b>{dashboardState.allowedQubitIds.size} qubits</b>
                     qualify and they don't connect into a usable block under the
                     current filters.
                 </p>
+            {/if}
 
             {#if dashboardState.relaxSuggestions?.candidates.length}
                 <div class="cl-relax-h">Relax one constraint</div>
@@ -297,7 +316,7 @@
             {/if}
 
             <div class="cl-fail-acts">
-                {#if dashboardState.nearestCluster.length >= 2}
+                {#if dashboardState.nearestCluster.length >= 2 && !(dashboardState.findFailReason === 'topology-unplaceable' && dashboardState.nearestCluster.length >= requestedSize)}
                     <button
                         class="cl-fail-btn primary"
                         onclick={() => dashboardState.shrinkToNearestAndRetry()}
