@@ -38,6 +38,7 @@
 
     const DEAD_EDGE_STROKE = "var(--dead-edge)";
     const DEAD_NODE_FILL = "var(--dead-node)";
+    const PLAYBACK_TWEEN_MS = 120;
 
     const PAD = $derived.by(() => {
         return {
@@ -313,7 +314,12 @@
 
     const scoreTween = Tween.of(() => targetScores, {
         easing: ease,
-        duration: () => (prefersReducedMotion.current ? 0 : DUR.base),
+        duration: () =>
+            prefersReducedMotion.current
+                ? 0
+                : dashboardState.isPlaying
+                  ? PLAYBACK_TWEEN_MS
+                  : DUR.base,
         interpolate: (a, b) => (t) =>
             new Map(
                 [...b].map(([id, to]) => {
@@ -333,7 +339,13 @@
 </script>
 
 {#if positions.length}
-    <svg {width} {height} class="block" class:entry-animating={entryAnimating}>
+    <svg
+        {width}
+        {height}
+        class="block"
+        class:entry-animating={entryAnimating}
+        class:playing={dashboardState.isPlaying}
+    >
         <defs>
             <filter id="f-glow" x="-100%" y="-100%" width="300%" height="300%">
                 <feGaussianBlur stdDeviation="5" result="b" />
@@ -574,6 +586,13 @@
         transition:
             stroke-opacity var(--dur-base) var(--ease-out),
             stroke-width var(--dur-base) var(--ease-out);
+    }
+    .playing .qnode,
+    .playing .entry-node-dead {
+        transition-duration: 120ms;
+    }
+    .playing .edge-live {
+        transition-duration: 120ms, 120ms;
     }
     /* Hover growth animates instead of snapping */
     .node-scale {

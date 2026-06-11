@@ -156,6 +156,7 @@
 
     $effect(() => {
         if (loadStatus !== "ready") return;
+        if (dashboardState.isPlaying) return;
         const params = new SvelteURLSearchParams();
         params.set("dev", dashboardState.device);
         params.set("t", String(dashboardState.timeIdx));
@@ -196,9 +197,7 @@
         // Mirrors range input: changing snapshot clears the cluster.
         const next = dashboardState.timeIdx + dir;
         if (next < 0 || next > dashboardState.timeCount - 1) return;
-        dashboardState.isPlaying = false;
-        dashboardState.timeIdx = next;
-        dashboardState.clearCluster();
+        dashboardState.setSnapshotIndex(next, { clearCluster: true });
     }
 
     function onWindowKeydown(e: KeyboardEvent) {
@@ -369,13 +368,6 @@
                         {entryAnimating}
                     />
 
-                    <!-- Current snapshot date while the timeline plays -->
-                    {#if dashboardState.isPlaying}
-                        <div class="play-chip font-mono" aria-live="polite">
-                            {dashboardState.snap.date}
-                        </div>
-                    {/if}
-
                     <!-- Hover tooltip (bottom-center of canvas) -->
                     {#if dashboardState.hoveredId !== null && dashboardState.snap.qubits[dashboardState.hoveredId]}
                         {@const q =
@@ -520,24 +512,6 @@
     /* ─── Plate entry animation (keyframes in motion.css) ────────────── */
     .plate-enter {
         animation: plate-fade-in var(--dur-base) var(--ease-standard) both;
-    }
-
-    /* ─── Playback date chip ─────────────────────────────────────────── */
-    .play-chip {
-        position: absolute;
-        top: 16px;
-        left: 50%;
-        transform: translateX(-50%);
-        z-index: var(--z-stage-ui);
-        background: var(--surface);
-        border: 1px solid var(--border-mid);
-        border-radius: 99px;
-        padding: 4px 13px;
-        font-size: 11.5px;
-        color: var(--text-2);
-        box-shadow: var(--shadow-panel);
-        pointer-events: none;
-        animation: fadeIn var(--dur-fast) var(--ease-out) both;
     }
 
     /* ─── Hover tooltip ──────────────────────────────────────────────── */

@@ -18,6 +18,11 @@ import { METRIC_OPTIONS } from '$lib/domain/metrics';
 import { QPU_DEVICES } from '$lib/data/calibration';
 import type { Dataset, UiEdge, UiSnapshot, MetricMode, ClusterDelta } from '$lib/types';
 
+type SnapshotIndexOptions = {
+    clearCluster?: boolean;
+    pause?: boolean;
+};
+
 /**
  * Single reactive store backing the dashboard. Holds user-controlled inputs and
  * loaded data, and exposes derived snapshots, filtering, and numeric view-models.
@@ -174,12 +179,38 @@ export class DashboardState {
         this.selectedId = null;
     }
 
+    setSnapshotIndex(idx: number, options: SnapshotIndexOptions = {}) {
+        const list = this.snapshotsByDevice[this.device] || [];
+        if (!list.length) {
+            this.timeIdx = 0;
+            this.pauseTimeline();
+            return;
+        }
+        if (options.pause !== false) this.pauseTimeline();
+        this.timeIdx = Math.min(Math.max(Math.round(idx), 0), list.length - 1);
+        if (options.clearCluster) this.clearCluster();
+    }
+
+    restartTimelineIfAtEnd() {
+        if (this.timeIdx >= this.timeCount - 1) {
+            this.setSnapshotIndex(0, { pause: false });
+        }
+    }
+
+    playTimeline() {
+        if (this.timeCount <= 1) return;
+        this.restartTimelineIfAtEnd();
+        if (this.cluster.length || this.findFailed) this.clearCluster();
+        this.isPlaying = true;
+    }
+
+    pauseTimeline() {
+        this.isPlaying = false;
+    }
+
     /** Move the timeline while keeping the cluster — for "view this cluster on that date". */
     jumpToSnapshot(idx: number) {
-        const list = this.snapshotsByDevice[this.device] || [];
-        if (!list.length) return;
-        this.isPlaying = false;
-        this.timeIdx = Math.min(Math.max(idx, 0), list.length - 1);
+        this.setSnapshotIndex(idx);
     }
 
     cycleMetric() {
@@ -205,7 +236,7 @@ export class DashboardState {
     }
 
     runFindCluster() {
-        this.isPlaying = false;
+        this.pauseTimeline();
         const result = findCluster(
             this.connRules,
             this.snap.qubits,
@@ -274,12 +305,13 @@ export class DashboardState {
 
     setDevice(dev: string) {
         this.device = dev;
-        this.isPlaying = false;
+        this.pauseTimeline();
         this.clearCluster();
         this.ensureTimeIdx(dev);
     }
 
     applyDataset(dataset: Dataset) {
+        this.pauseTimeline();
         this.totalQubits = dataset.meta?.n_qubits || TOTAL_QUBITS;
         const couplingMap = dataset.coupling_map || {};
         const snapshotsByDevice: Record<string, UiSnapshot[]> = {};

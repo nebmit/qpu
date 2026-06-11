@@ -1,4 +1,5 @@
 <script lang="ts">
+    import { onDestroy } from "svelte";
     import { dashboardState } from "$lib/state/dashboard.svelte";
     import { TOPOLOGIES, TOPO_HINT } from "$lib/domain/cluster";
 
@@ -24,47 +25,93 @@
     });
 
     const clearClusterDuringSliderInput = () => {
-        dashboardState.isPlaying = false;
+        dashboardState.pauseTimeline();
         dashboardState.clearCluster();
     };
 
     let qualifyCount = $derived(dashboardState.allowedQubitIds.size);
+    let timelineProgress = $derived.by(() => {
+        const max = Math.max(1, dashboardState.timeCount - 1);
+        return Math.min(100, Math.max(0, (dashboardState.timeIdx / max) * 100));
+    });
 
     // ── Timeline playback ──────────────────────────────────────────────
-    // Step duration leaves the 280ms score morph room to finish per frame.
-    const PLAY_STEP_MS = 650;
+    // Fast enough to scan a full 178-snapshot series in under 30s.
+    const PLAY_STEP_MS = 150;
+    let frameId: number | null = null;
+    let lastFrameAt: number | null = null;
+    let elapsedSinceStep = 0;
 
-    $effect(() => {
-        if (!dashboardState.isPlaying) return;
-        const timer = setInterval(() => {
-            if (dashboardState.timeIdx >= dashboardState.timeCount - 1) {
-                dashboardState.isPlaying = false;
+    function stopPlaybackLoop() {
+        if (frameId !== null) {
+            if (typeof cancelAnimationFrame === "function") {
+                cancelAnimationFrame(frameId);
+            }
+            frameId = null;
+        }
+        lastFrameAt = null;
+        elapsedSinceStep = 0;
+    }
+
+    function playbackFrame(now: number) {
+        if (!dashboardState.isPlaying) {
+            stopPlaybackLoop();
+            return;
+        }
+        if (lastFrameAt === null) lastFrameAt = now;
+        const delta = Math.min(now - lastFrameAt, PLAY_STEP_MS);
+        lastFrameAt = now;
+        elapsedSinceStep += delta;
+
+        if (elapsedSinceStep >= PLAY_STEP_MS) {
+            elapsedSinceStep %= PLAY_STEP_MS;
+            const next = dashboardState.timeIdx + 1;
+            const last = dashboardState.timeCount - 1;
+            if (next >= last) {
+                dashboardState.setSnapshotIndex(last, { pause: false });
+                dashboardState.pauseTimeline();
+                stopPlaybackLoop();
                 return;
             }
-            dashboardState.timeIdx += 1;
-            // Same convention as range input: a new snapshot
-            // invalidates the found cluster.
-            dashboardState.clearCluster();
-        }, PLAY_STEP_MS);
-        return () => clearInterval(timer);
+            dashboardState.setSnapshotIndex(next, { pause: false });
+        }
+
+        frameId = requestAnimationFrame(playbackFrame);
+    }
+
+    $effect(() => {
+        if (!dashboardState.isPlaying) {
+            stopPlaybackLoop();
+            return;
+        }
+        stopPlaybackLoop();
+        frameId = requestAnimationFrame(playbackFrame);
+        return stopPlaybackLoop;
     });
+
+    onDestroy(stopPlaybackLoop);
+
+    function onTimelineInput(e: Event) {
+        const idx = Number((e.currentTarget as HTMLInputElement).value);
+        dashboardState.setSnapshotIndex(idx, { clearCluster: true });
+    }
 
     function togglePlay() {
         if (dashboardState.isPlaying) {
-            dashboardState.isPlaying = false;
+            dashboardState.pauseTimeline();
             return;
         }
-        if (dashboardState.timeCount <= 1) return;
-        if (dashboardState.timeIdx >= dashboardState.timeCount - 1) {
-            dashboardState.timeIdx = 0;
-            dashboardState.clearCluster();
-        }
-        dashboardState.isPlaying = true;
+        dashboardState.playTimeline();
     }
 </script>
 
 <aside class="plate-operate" class:mob-open={mobileOpen}>
-    <button type="button" class="sheet-handle" onclick={onClose} aria-label="Close controls">
+    <button
+        type="button"
+        class="sheet-handle"
+        onclick={onClose}
+        aria-label="Close controls"
+    >
         <span class="sheet-handle-bar"></span>
     </button>
 
@@ -121,6 +168,7 @@
             <button
                 class="play"
                 class:on={dashboardState.isPlaying}
+                class:playing={dashboardState.isPlaying}
                 onclick={togglePlay}
                 disabled={dashboardState.timeCount <= 1}
                 aria-pressed={dashboardState.isPlaying}
@@ -129,23 +177,37 @@
                     : "Play snapshot timeline"}
             >
                 {#if dashboardState.isPlaying}
-                    <svg viewBox="0 0 12 12" fill="currentColor" aria-hidden="true">
+                    <svg
+                        viewBox="0 0 12 12"
+                        fill="currentColor"
+                        aria-hidden="true"
+                    >
                         <rect x="2.5" y="2" width="2.6" height="8" rx="0.8" />
                         <rect x="6.9" y="2" width="2.6" height="8" rx="0.8" />
                     </svg>
                 {:else}
-                    <svg viewBox="0 0 12 12" fill="currentColor" aria-hidden="true">
-                        <path d="M3.4 2.2a.7.7 0 0 1 1.06-.6l6 3.8a.7.7 0 0 1 0 1.2l-6 3.8a.7.7 0 0 1-1.06-.6V2.2Z" />
+                    <svg
+                        viewBox="0 0 12 12"
+                        fill="currentColor"
+                        aria-hidden="true"
+                    >
+                        <path
+                            d="M3.4 2.2a.7.7 0 0 1 1.06-.6l6 3.8a.7.7 0 0 1 0 1.2l-6 3.8a.7.7 0 0 1-1.06-.6V2.2Z"
+                        />
                     </svg>
                 {/if}
             </button>
             <input
+                class="timeline-range"
+                class:playing={dashboardState.isPlaying}
                 type="range"
                 min="0"
                 max={Math.max(0, dashboardState.timeCount - 1)}
-                bind:value={dashboardState.timeIdx}
-                oninput={clearClusterDuringSliderInput}
+                step="1"
+                value={dashboardState.timeIdx}
+                oninput={onTimelineInput}
                 disabled={dashboardState.timeCount <= 1}
+                style="--timeline-progress: {timelineProgress}%"
                 aria-label="Calibration snapshot"
                 aria-valuetext={dashboardState.snap.date || "no snapshot"}
             />
@@ -308,6 +370,7 @@
                         ? 'on'
                         : ''}"
                     onclick={() => {
+                        dashboardState.pauseTimeline();
                         dashboardState.topology = t.value;
                         dashboardState.clearCluster();
                     }}
@@ -393,6 +456,17 @@
         flex: 1;
         min-width: 0;
     }
+    .snap-row input.timeline-range {
+        background: linear-gradient(
+            90deg,
+            var(--accent) 0 var(--timeline-progress, 0%),
+            var(--border-mid) var(--timeline-progress, 0%) 100%
+        );
+        transition: background var(--dur-fast) var(--ease-out);
+    }
+    .snap-row input.timeline-range:disabled {
+        background: var(--border-mid);
+    }
     .play {
         width: 24px;
         height: 24px;
@@ -422,9 +496,24 @@
         background: var(--accent-surface);
         border-color: var(--accent-border);
     }
+    .play.playing {
+        box-shadow: 0 0 0 3px
+            color-mix(in oklch, var(--accent) 12%, transparent);
+    }
     .play:disabled {
         opacity: 0.35;
         cursor: not-allowed;
+    }
+    .snap-row input.timeline-range::-webkit-slider-thumb {
+        transition:
+            box-shadow var(--dur-fast),
+            transform var(--dur-fast);
+    }
+    .snap-row input.timeline-range.playing::-webkit-slider-thumb {
+        transform: scale(1.04);
+    }
+    .snap-row input.timeline-range:not(:disabled):active::-webkit-slider-thumb {
+        transform: scale(1.16);
     }
 
     /* ── Qualifying-count readout ──────────────────────────────────── */
