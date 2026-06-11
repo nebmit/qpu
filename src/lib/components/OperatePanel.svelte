@@ -1,20 +1,14 @@
 <script lang="ts">
-    import { onDestroy } from "svelte";
     import { dashboardState, INPUT_LIMITS } from "$lib/state/dashboard.svelte";
     import { TOPOLOGIES, TOPO_HINT } from "$lib/domain/cluster";
+    import RangeControl from "$lib/components/operate/RangeControl.svelte";
+    import TimelineScrubber from "$lib/components/operate/TimelineScrubber.svelte";
 
-    let {
-        mobileOpen = false,
-        onClose,
-        onFind,
-    } = $props<{
+    let { mobileOpen = false, onClose, onFind } = $props<{
         mobileOpen?: boolean;
         onClose?: () => void;
         onFind?: () => void;
     }>();
-
-    let timeStart = $derived(dashboardState.deviceSnapshots[0]?.date || "—");
-    let timeEnd = $derived(dashboardState.deviceSnapshots.at(-1)?.date || "—");
 
     const clearClusterDuringSliderInput = () => {
         dashboardState.pauseTimeline();
@@ -22,78 +16,6 @@
     };
 
     let qualifyCount = $derived(dashboardState.allowedQubitIds.size);
-    let timelineProgress = $derived.by(() => {
-        const max = Math.max(1, dashboardState.timeCount - 1);
-        return Math.min(100, Math.max(0, (dashboardState.timeIdx / max) * 100));
-    });
-
-    // Fast enough to scan a full 178-snapshot series in under 30s.
-    const PLAY_STEP_MS = 150;
-    let frameId: number | null = null;
-    let lastFrameAt: number | null = null;
-    let elapsedSinceStep = 0;
-
-    function stopPlaybackLoop() {
-        if (frameId !== null) {
-            if (typeof cancelAnimationFrame === "function") {
-                cancelAnimationFrame(frameId);
-            }
-            frameId = null;
-        }
-        lastFrameAt = null;
-        elapsedSinceStep = 0;
-    }
-
-    function playbackFrame(now: number) {
-        if (!dashboardState.isPlaying) {
-            stopPlaybackLoop();
-            return;
-        }
-        if (lastFrameAt === null) lastFrameAt = now;
-        const delta = Math.min(now - lastFrameAt, PLAY_STEP_MS);
-        lastFrameAt = now;
-        elapsedSinceStep += delta;
-
-        if (elapsedSinceStep >= PLAY_STEP_MS) {
-            elapsedSinceStep %= PLAY_STEP_MS;
-            const next = dashboardState.timeIdx + 1;
-            const last = dashboardState.timeCount - 1;
-            if (next >= last) {
-                dashboardState.setSnapshotIndex(last, { pause: false });
-                dashboardState.pauseTimeline();
-                stopPlaybackLoop();
-                return;
-            }
-            dashboardState.setSnapshotIndex(next, { pause: false });
-        }
-
-        frameId = requestAnimationFrame(playbackFrame);
-    }
-
-    $effect(() => {
-        if (!dashboardState.isPlaying) {
-            stopPlaybackLoop();
-            return;
-        }
-        stopPlaybackLoop();
-        frameId = requestAnimationFrame(playbackFrame);
-        return stopPlaybackLoop;
-    });
-
-    onDestroy(stopPlaybackLoop);
-
-    function onTimelineInput(e: Event) {
-        const idx = Number((e.currentTarget as HTMLInputElement).value);
-        dashboardState.setSnapshotIndex(idx, { clearCluster: true });
-    }
-
-    function togglePlay() {
-        if (dashboardState.isPlaying) {
-            dashboardState.pauseTimeline();
-            return;
-        }
-        dashboardState.playTimeline();
-    }
 
     function resetInputs() {
         dashboardState.resetInputs();
@@ -174,62 +96,9 @@
                 <span class="step">2</span>
                 <span class="eyebrow">Snapshot</span>
             </div>
-            <span class="date-val font-mono"
-                >{dashboardState.snap.date || "—"}</span
-            >
+            <span class="date-val font-mono">{dashboardState.snap.date || "—"}</span>
         </div>
-        <div class="snap-row">
-            <button
-                class="play"
-                class:on={dashboardState.isPlaying}
-                class:playing={dashboardState.isPlaying}
-                onclick={togglePlay}
-                disabled={dashboardState.timeCount <= 1}
-                aria-pressed={dashboardState.isPlaying}
-                aria-label={dashboardState.isPlaying
-                    ? "Pause snapshot playback"
-                    : "Play snapshot timeline"}
-            >
-                {#if dashboardState.isPlaying}
-                    <svg
-                        viewBox="0 0 12 12"
-                        fill="currentColor"
-                        aria-hidden="true"
-                    >
-                        <rect x="2.5" y="2" width="2.6" height="8" rx="0.8" />
-                        <rect x="6.9" y="2" width="2.6" height="8" rx="0.8" />
-                    </svg>
-                {:else}
-                    <svg
-                        viewBox="0 0 12 12"
-                        fill="currentColor"
-                        aria-hidden="true"
-                    >
-                        <path
-                            d="M3.4 2.2a.7.7 0 0 1 1.06-.6l6 3.8a.7.7 0 0 1 0 1.2l-6 3.8a.7.7 0 0 1-1.06-.6V2.2Z"
-                        />
-                    </svg>
-                {/if}
-            </button>
-            <input
-                class="timeline-range"
-                class:playing={dashboardState.isPlaying}
-                type="range"
-                min="0"
-                max={Math.max(0, dashboardState.timeCount - 1)}
-                step="1"
-                value={dashboardState.timeIdx}
-                oninput={onTimelineInput}
-                disabled={dashboardState.timeCount <= 1}
-                style="--timeline-progress: {timelineProgress}%"
-                aria-label="Calibration snapshot"
-                aria-valuetext={dashboardState.snap.date || "no snapshot"}
-            />
-        </div>
-        <div class="ends">
-            <span>{timeStart}</span>
-            <span>{timeEnd}</span>
-        </div>
+        <TimelineScrubber />
     </div>
 
     <div class="op-group">
@@ -251,51 +120,33 @@
             <span class="rule"></span>
         </div>
 
-        <div class="sld">
-            <div class="sld-top">
-                <span class="sld-lbl">Readout error</span>
-                <span class="sld-val"
-                    >{dashboardState.errorCutoffs.readoutPct.toFixed(1)}<i>%</i
-                    ></span
-                >
-            </div>
-            <input
-                type="range"
-                min={INPUT_LIMITS.readoutPct.min}
-                max={INPUT_LIMITS.readoutPct.max}
-                step="0.1"
-                bind:value={dashboardState.errorCutoffs.readoutPct}
-                oninput={clearClusterDuringSliderInput}
-                aria-label="Readout error ceiling"
-                aria-valuetext="{dashboardState.errorCutoffs.readoutPct.toFixed(
-                    1,
-                )} percent"
-            />
-        </div>
+        <RangeControl
+            label="Readout error"
+            bind:value={dashboardState.errorCutoffs.readoutPct}
+            min={INPUT_LIMITS.readoutPct.min}
+            max={INPUT_LIMITS.readoutPct.max}
+            step={0.1}
+            unit="%"
+            decimals={1}
+            ariaLabel="Readout error ceiling"
+            ariaValueText="{dashboardState.errorCutoffs.readoutPct.toFixed(1)} percent"
+            oninput={clearClusterDuringSliderInput}
+        />
 
         <div class="sld-gap"></div>
 
-        <div class="sld">
-            <div class="sld-top">
-                <span class="sld-lbl">2Q gate error</span>
-                <span class="sld-val"
-                    >{dashboardState.errorCutoffs.twoqPct.toFixed(1)}<i>%</i
-                    ></span
-                >
-            </div>
-            <input
-                type="range"
-                min={INPUT_LIMITS.twoqPct.min}
-                max={INPUT_LIMITS.twoqPct.max}
-                step="0.1"
-                bind:value={dashboardState.errorCutoffs.twoqPct}
-                oninput={clearClusterDuringSliderInput}
-                aria-label="Two-qubit gate error ceiling"
-                aria-valuetext="{dashboardState.errorCutoffs.twoqPct.toFixed(
-                    1,
-                )} percent"
-            />
-        </div>
+        <RangeControl
+            label="2Q gate error"
+            bind:value={dashboardState.errorCutoffs.twoqPct}
+            min={INPUT_LIMITS.twoqPct.min}
+            max={INPUT_LIMITS.twoqPct.max}
+            step={0.1}
+            unit="%"
+            decimals={1}
+            ariaLabel="Two-qubit gate error ceiling"
+            ariaValueText="{dashboardState.errorCutoffs.twoqPct.toFixed(1)} percent"
+            oninput={clearClusterDuringSliderInput}
+        />
 
         <div class="sld-gap"></div>
 
@@ -305,47 +156,31 @@
             <span class="rule"></span>
         </div>
 
-        <div class="sld">
-            <div class="sld-top">
-                <span class="sld-lbl">T₁ relaxation</span>
-                <span class="sld-val"
-                    >{dashboardState.coherenceCutoffs.minT1}<i>μs</i></span
-                >
-            </div>
-            <input
-                type="range"
-                min={INPUT_LIMITS.minT1.min}
-                max={INPUT_LIMITS.minT1.max}
-                step="1"
-                bind:value={dashboardState.coherenceCutoffs.minT1}
-                oninput={clearClusterDuringSliderInput}
-                aria-label="T1 relaxation floor"
-                aria-valuetext="{dashboardState.coherenceCutoffs
-                    .minT1} microseconds"
-            />
-        </div>
+        <RangeControl
+            label="T₁ relaxation"
+            bind:value={dashboardState.coherenceCutoffs.minT1}
+            min={INPUT_LIMITS.minT1.min}
+            max={INPUT_LIMITS.minT1.max}
+            step={1}
+            unit="μs"
+            ariaLabel="T1 relaxation floor"
+            ariaValueText="{dashboardState.coherenceCutoffs.minT1} microseconds"
+            oninput={clearClusterDuringSliderInput}
+        />
 
         <div class="sld-gap"></div>
 
-        <div class="sld">
-            <div class="sld-top">
-                <span class="sld-lbl">T₂ dephasing</span>
-                <span class="sld-val"
-                    >{dashboardState.coherenceCutoffs.minT2}<i>μs</i></span
-                >
-            </div>
-            <input
-                type="range"
-                min={INPUT_LIMITS.minT2.min}
-                max={INPUT_LIMITS.minT2.max}
-                step="1"
-                bind:value={dashboardState.coherenceCutoffs.minT2}
-                oninput={clearClusterDuringSliderInput}
-                aria-label="T2 dephasing floor"
-                aria-valuetext="{dashboardState.coherenceCutoffs
-                    .minT2} microseconds"
-            />
-        </div>
+        <RangeControl
+            label="T₂ dephasing"
+            bind:value={dashboardState.coherenceCutoffs.minT2}
+            min={INPUT_LIMITS.minT2.min}
+            max={INPUT_LIMITS.minT2.max}
+            step={1}
+            unit="μs"
+            ariaLabel="T2 dephasing floor"
+            ariaValueText="{dashboardState.coherenceCutoffs.minT2} microseconds"
+            oninput={clearClusterDuringSliderInput}
+        />
     </div>
 
     <div class="op-group">
@@ -356,23 +191,17 @@
             </div>
         </div>
 
-        <div class="sld">
-            <div class="sld-top">
-                <span class="sld-lbl">Cluster size</span>
-                <span class="sld-val">{dashboardState.clusterSize}<i>Q</i></span
-                >
-            </div>
-            <input
-                type="range"
-                min={INPUT_LIMITS.clusterSize.min}
-                max={INPUT_LIMITS.clusterSize.max}
-                step="1"
-                bind:value={dashboardState.clusterSize}
-                oninput={clearClusterDuringSliderInput}
-                aria-label="Cluster size"
-                aria-valuetext="{dashboardState.clusterSize} qubits"
-            />
-        </div>
+        <RangeControl
+            label="Cluster size"
+            bind:value={dashboardState.clusterSize}
+            min={INPUT_LIMITS.clusterSize.min}
+            max={INPUT_LIMITS.clusterSize.max}
+            step={1}
+            unit="Q"
+            ariaLabel="Cluster size"
+            ariaValueText="{dashboardState.clusterSize} qubits"
+            oninput={clearClusterDuringSliderInput}
+        />
 
         <div class="ctrl-lbl">Topology</div>
         <div class="seg full">
@@ -492,75 +321,6 @@
         border-radius: 5px;
     }
 
-    .snap-row {
-        display: flex;
-        align-items: center;
-        gap: 10px;
-    }
-    .snap-row input[type="range"] {
-        flex: 1;
-        min-width: 0;
-    }
-    .snap-row input.timeline-range {
-        background: linear-gradient(
-            90deg,
-            var(--accent) 0 var(--timeline-progress, 0%),
-            var(--border-mid) var(--timeline-progress, 0%) 100%
-        );
-        transition: background var(--dur-fast) var(--ease-out);
-    }
-    .snap-row input.timeline-range:disabled {
-        background: var(--border-mid);
-    }
-    .play {
-        width: 24px;
-        height: 24px;
-        flex-shrink: 0;
-        display: grid;
-        place-items: center;
-        border: 1px solid var(--border-mid);
-        border-radius: 50%;
-        background: var(--surface);
-        color: var(--text-2);
-        cursor: pointer;
-        transition:
-            color var(--dur-fast),
-            border-color var(--dur-fast),
-            background var(--dur-fast);
-    }
-    .play svg {
-        width: 11px;
-        height: 11px;
-    }
-    .play:hover:not(:disabled) {
-        color: var(--accent);
-        border-color: var(--accent-border);
-    }
-    .play.on {
-        color: var(--accent);
-        background: var(--accent-surface);
-        border-color: var(--accent-border);
-    }
-    .play.playing {
-        box-shadow: 0 0 0 3px
-            color-mix(in oklch, var(--accent) 12%, transparent);
-    }
-    .play:disabled {
-        opacity: 0.35;
-        cursor: not-allowed;
-    }
-    .snap-row input.timeline-range::-webkit-slider-thumb {
-        transition:
-            box-shadow var(--dur-fast),
-            transform var(--dur-fast);
-    }
-    .snap-row input.timeline-range.playing::-webkit-slider-thumb {
-        transform: scale(1.04);
-    }
-    .snap-row input.timeline-range:not(:disabled):active::-webkit-slider-thumb {
-        transform: scale(1.16);
-    }
-
     .qualify {
         font-size: 11px;
         color: var(--text-3);
@@ -571,33 +331,6 @@
         animation: count-tick var(--dur-base) var(--ease-out) both;
     }
 
-    .sld {
-        margin-bottom: 14px;
-    }
-    .sld:last-child {
-        margin-bottom: 0;
-    }
-    .sld-top {
-        display: flex;
-        justify-content: space-between;
-        align-items: baseline;
-        margin-bottom: 8px;
-    }
-    .sld-lbl {
-        font-size: 12px;
-        color: var(--text-2);
-        white-space: nowrap;
-    }
-    .sld-val {
-        font-size: 11.5px;
-        color: var(--text);
-        font-family: var(--font-mono);
-    }
-    .sld-val i {
-        color: var(--text-3);
-        font-style: normal;
-        margin-left: 1px;
-    }
     .sld-sub-h {
         display: flex;
         align-items: center;
@@ -641,14 +374,6 @@
         color: var(--text-3);
         margin-top: 9px;
         text-wrap: pretty;
-    }
-    .ends {
-        display: flex;
-        justify-content: space-between;
-        margin-top: 7px;
-        font-size: 10px;
-        font-family: var(--font-mono);
-        color: var(--text-3);
     }
 
     .find {
