@@ -102,7 +102,6 @@
         return () => mediaQuery?.removeEventListener("change", handle);
     });
 
-    // ── Shareable URL state ────────────────────────────────────────────
     const TOPOLOGY_VALUES: Topology[] = ["compact", "linear", "branched"];
     const METRIC_VALUES: MetricMode[] = ["readout", "T1", "T2", "stability"];
 
@@ -181,7 +180,6 @@
         return () => clearTimeout(timer);
     });
 
-    // ── Keyboard layer: Esc to back out, single-key accelerators ──────
     function isEditableTarget(e: KeyboardEvent) {
         const t = e.target as HTMLElement | null;
         if (!t) return false;
@@ -194,7 +192,6 @@
     }
 
     function stepSnapshot(dir: number) {
-        // Mirrors range input: changing snapshot clears the cluster.
         const next = dashboardState.timeIdx + dir;
         if (next < 0 || next > dashboardState.timeCount - 1) return;
         dashboardState.setSnapshotIndex(next, { clearCluster: true });
@@ -241,7 +238,6 @@
 
 <svelte:window onkeydown={onWindowKeydown} />
 
-<!-- ─── Loading overlay ──────────────────────────────────────────────── -->
 {#if loadStatus === "loading" || loadStatus === "transitioning"}
     <div
         class="loader-overlay fixed inset-0 z-(--z-loader) flex flex-col items-center justify-center gap-6 bg-(--bg)"
@@ -295,7 +291,6 @@
     </div>
 {/if}
 
-<!-- ─── Error state ──────────────────────────────────────────────────── -->
 {#if loadStatus === "error"}
     <div
         class="fade-in fixed inset-0 z-(--z-loader) flex flex-col items-center justify-center bg-(--bg)"
@@ -337,7 +332,6 @@
         </button>
     </div>
 {:else if loadStatus === "transitioning" || loadStatus === "ready"}
-    <!-- ─── Plate shell ───────────────────────────────────────────────────── -->
     <div class="plate plate-enter">
         <Topbar onOpenPalette={() => (paletteOpen = true)} />
 
@@ -354,7 +348,6 @@
                 }}
             />
 
-            <!-- Stage -->
             <div class="plate-stage">
                 <div
                     class="fig-canvas"
@@ -368,7 +361,6 @@
                         {entryAnimating}
                     />
 
-                    <!-- Hover tooltip (bottom-center of canvas) -->
                     {#if dashboardState.hoveredId !== null && dashboardState.snap.qubits[dashboardState.hoveredId]}
                         {@const q =
                             dashboardState.snap.qubits[
@@ -450,7 +442,6 @@
                 onClose={closeSheet}
             />
 
-            <!-- Mobile bottom nav -->
             <nav class="mob-nav" aria-label="Navigation">
                 <button
                     class="mob-tab"
@@ -495,7 +486,6 @@
                     <span class="mob-badge" class:show={hasResults}></span>
                 </button>
             </nav>
-            <!-- Pointer-only dismiss layer; Esc handles keyboard dismissal -->
             <div
                 class="mob-backdrop"
                 class:show={activeSheet !== null}
@@ -509,12 +499,10 @@
 {/if}
 
 <style>
-    /* ─── Plate entry animation (keyframes in motion.css) ────────────── */
     .plate-enter {
         animation: plate-fade-in var(--dur-base) var(--ease-standard) both;
     }
 
-    /* ─── Hover tooltip ──────────────────────────────────────────────── */
     @keyframes tip-in {
         from {
             opacity: 0;
@@ -583,14 +571,10 @@
         }
     }
 
-    /* ─── Loader → app handoff (bar-pulse keyframes in motion.css;
-       reduced-motion handled by the global rule there) ──────────────── */
     .loader-bar-wrap {
         width: 14rem;
     }
     .loader-track {
-        /* full-bleed stretch via transform (no layout work); --bar-scale is
-           overlay-width / 14rem, computed inline on the overlay */
         transform-origin: center;
         transition:
             transform var(--dur-base) var(--ease-in-out),

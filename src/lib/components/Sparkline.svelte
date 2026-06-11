@@ -1,7 +1,4 @@
 <script lang="ts">
-    // Tiny inline history chart. Purely decorative next to the formatted
-    // value it accompanies, hence aria-hidden; nulls split the line into
-    // segments rather than being interpolated away.
     let {
         values,
         currentIdx = -1,

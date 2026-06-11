@@ -15,7 +15,6 @@
     let commands = $derived.by(() => {
         const cmds: Cmd[] = [];
 
-        // Dynamic: "q47" / "47" jumps straight to a qubit's record.
         const m = query.trim().match(/^q?\s*(\d{1,3})$/i);
         if (m) {
             const id = Number(m[1]);
@@ -273,7 +272,6 @@
         font-family: var(--font-mono);
     }
 
-    /* Desktop-only affordance: hidden where there's no hardware keyboard */
     @media (max-width: 767px) {
         .cp-wrap {
             display: none;

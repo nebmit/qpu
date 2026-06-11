@@ -35,7 +35,6 @@
         return Math.min(100, Math.max(0, (dashboardState.timeIdx / max) * 100));
     });
 
-    // ── Timeline playback ──────────────────────────────────────────────
     // Fast enough to scan a full 178-snapshot series in under 30s.
     const PLAY_STEP_MS = 150;
     let frameId: number | null = null;
@@ -115,7 +114,6 @@
         <span class="sheet-handle-bar"></span>
     </button>
 
-    <!-- ① Device -->
     <div class="op-device">
         <div class="op-head">
             <div class="op-head-l">
@@ -153,7 +151,6 @@
         </div>
     </div>
 
-    <!-- ② Snapshot -->
     <div class="op-group">
         <div class="op-head">
             <div class="op-head-l">
@@ -218,7 +215,6 @@
         </div>
     </div>
 
-    <!-- ③ Quality filters -->
     <div class="op-group">
         <div class="op-head">
             <div class="op-head-l">
@@ -335,7 +331,6 @@
         </div>
     </div>
 
-    <!-- ④ Find cluster -->
     <div class="op-group">
         <div class="op-head">
             <div class="op-head-l">
@@ -383,7 +378,6 @@
 
         <div style="height: 14px"></div>
 
-        <!-- Find button -->
         <button
             class="find"
             disabled={dashboardState.totalConnections === 0}
@@ -403,7 +397,6 @@
         color: var(--text-2);
     }
 
-    /* ── Section heads ─────────────────────────────────────────────── */
     .op-device {
         margin-bottom: 22px;
         padding-bottom: 22px;
@@ -446,7 +439,6 @@
         border-radius: 5px;
     }
 
-    /* ── Snapshot playback ─────────────────────────────────────────── */
     .snap-row {
         display: flex;
         align-items: center;
@@ -516,7 +508,6 @@
         transform: scale(1.16);
     }
 
-    /* ── Qualifying-count readout ──────────────────────────────────── */
     .qualify {
         font-size: 11px;
         color: var(--text-3);
@@ -527,7 +518,6 @@
         animation: count-tick var(--dur-base) var(--ease-out) both;
     }
 
-    /* ── Sliders ───────────────────────────────────────────────────── */
     .sld {
         margin-bottom: 14px;
     }
@@ -608,7 +598,6 @@
         color: var(--text-3);
     }
 
-    /* ── Find button ───────────────────────────────────────────────── */
     .find {
         width: 100%;
         padding: 11px 14px;
@@ -646,7 +635,6 @@
         font-family: var(--font-mono);
     }
 
-    /* ── Dropdown ──────────────────────────────────────────────────── */
     .dd {
         position: relative;
         display: inline-flex;

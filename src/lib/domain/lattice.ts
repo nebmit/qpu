@@ -1,10 +1,5 @@
 import type { UiEdge } from '$lib/types';
 
-// Heavy-hex lattice geometry. `buildLayout`/`buildEdges` synthesise the default
-// 156-qubit IBM heavy-hex arrangement; `buildEdgesFromCoupling` derives edges
-// from a device-supplied coupling map instead. These produce the static base
-// topology that snapshots are layered onto (see `$lib/domain/snapshot`).
-
 export const TOTAL_QUBITS = 156;
 
 export const edgeKey = (a: number, b: number): string =>

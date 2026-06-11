@@ -1,11 +1,6 @@
 import type { Snapshot, UiQubit, UiEdge, UiSnapshot } from '$lib/types';
 import { edgeKey } from '$lib/domain/lattice';
 
-// Adapts a raw wire `Snapshot` into the `UiSnapshot` view-model: indexes qubits
-// by id, converts coherence times to microseconds, and averages per-edge gate
-// error onto the static base topology.
-
-// Zero-value qubit record — every metric unknown until a snapshot fills it in.
 function emptyQubit(id: number): UiQubit {
     return {
         id,

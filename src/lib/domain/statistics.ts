@@ -1,6 +1,3 @@
-// Small numeric aggregates over nullable arrays. Both ignore null/undefined and
-// non-finite entries, and return null when no valid sample remains.
-
 export function avg(vals: Array<number | null | undefined>): number | null {
     const ok = vals.filter((v): v is number => typeof v === 'number' && Number.isFinite(v));
     if (!ok.length) return null;

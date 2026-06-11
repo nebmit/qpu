@@ -108,9 +108,6 @@
         ),
     );
 
-    // Opacities for de-emphasizing non-cluster content while a cluster is shown.
-    // "Early" values (during the reveal cascade) dim less so context stays
-    // readable mid-animation; once settled, the dimming deepens.
     const OUT_NODE = 0.38;
     const OUT_NODE_EARLY = 0.68;
     const OUT_EDGE = 0.11;
@@ -134,7 +131,6 @@
         new Set(dashboardState.filteredEdges.map((e) => edgeKey(e.source, e.target))),
     );
 
-    // 1-hop neighbourhood of the hovered qubit, for edge/node emphasis.
     let hoverNbrs = $derived.by(() => {
         const h = dashboardState.hoveredId;
         const s = new SvelteSet<number>();
@@ -270,7 +266,6 @@
         clearRevealTimers();
     });
 
-    // Per-node entry delay: center-out cascade (closer to centroid = earlier)
     let entryDelays = $derived.by(() => {
         const m = new Map<number, number>();
         if (!positions.length) return m;
@@ -331,7 +326,6 @@
 
     let displayScores = $derived(scoreTween.current);
 
-    // Node click: inspect the qubit.
     function activate(id: number) {
         dashboardState.selectedId =
             dashboardState.selectedId === id ? null : id;
@@ -356,7 +350,6 @@
             </filter>
         </defs>
         <g>
-            <!-- Dead edges (behind live content) -->
             {#each dashboardState.snap.edges as e (edgeKey(e.source, e.target))}
                 {#if !filteredEdgeKeys.has(edgeKey(e.source, e.target))}
                     {@const a = xy.get(e.source)}
@@ -377,7 +370,6 @@
                 {/if}
             {/each}
 
-            <!-- Dead nodes (behind live content) -->
             {#each positions as pos (pos.id)}
                 {@const p = xy.get(pos.id)}
                 {@const isAllowed = dashboardState.allowedQubitIds.has(pos.id)}
@@ -395,7 +387,6 @@
                 {/if}
             {/each}
 
-            <!-- Live edges -->
             {#each dashboardState.filteredEdges as e (edgeKey(e.source, e.target))}
                 {@const a = xy.get(e.source)}
                 {@const b = xy.get(e.target)}
@@ -439,7 +430,6 @@
                                 : baseOpacity}
                         stroke-linecap="round"
                     />
-                    <!-- Wide invisible twin so the thin line is hoverable. -->
                     <!-- svelte-ignore a11y_no_static_element_interactions -->
                     <line
                         class="edge-hit"
@@ -461,7 +451,6 @@
                 {/if}
             {/each}
 
-            <!-- Cluster halo discs (behind live nodes) -->
             <g class="halo-back-layer">
                 {#each Array.from(clSet) as id (id)}
                     {@const c = xy.get(id)}
@@ -479,7 +468,6 @@
                 {/each}
             </g>
 
-            <!-- Live nodes -->
             {#each positions as pos (pos.id)}
                 {@const q = dashboardState.snap.qubits[pos.id]}
                 {@const p = xy.get(pos.id)}
@@ -526,7 +514,6 @@
                             style="--entry-delay: {entryDelays.get(pos.id) ??
                                 0}ms"
                         >
-                            <!-- Comfortable hit target even when nodes render tiny -->
                             <circle
                                 class="hit"
                                 r={Math.max(R * 1.8, 11)}
@@ -554,7 +541,6 @@
                 {/if}
             {/each}
 
-            <!-- Ping rings (above nodes) -->
             <g class="halo-layer">
                 {#each pingRings as p (p.key)}
                     {@const c = xy.get(p.id)}
@@ -594,7 +580,6 @@
     .playing .edge-live {
         transition-duration: 120ms, 120ms;
     }
-    /* Hover growth animates instead of snapping */
     .node-scale {
         transform-box: fill-box;
         transform-origin: center;

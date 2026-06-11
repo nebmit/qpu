@@ -15,14 +15,11 @@
     }
 
     onMount(() => {
-        // The theme is resolved and applied pre-paint by the inline script in
-        // app.html; just sync the toggle with what's already on the document.
         themeState.sync();
     });
 </script>
 
 <header class="topbar">
-    <!-- brand zone (aligns with OPERATE column) -->
     <div class="tb-left">
         <span class="brand-word"
             >QPU&nbsp;Calibration&nbsp;<b>Visualizer</b></span
@@ -49,7 +46,6 @@
         </a>
     </div>
 
-    <!-- figure zone (center stage) — view selector lives in the figure header -->
     <div class="tb-center">
         <div class="tb-figgrp">
             <span class="fig-no desk-only">Fig.&nbsp;01</span>
@@ -68,7 +64,6 @@
         </div>
     </div>
 
-    <!-- controls zone (aligns with READ column) -->
     <div class="tb-right">
         {#if onOpenPalette}
             <button
@@ -94,7 +89,6 @@
                 <span class="kbd">Cmd K</span>
             </button>
         {/if}
-        <!-- Theme toggle -->
         <button
             class="ibtn"
             onclick={toggleDark}
@@ -140,7 +134,6 @@
 </header>
 
 <style>
-    /* ── Top bar zones (aligned with the plate's three columns) ─────── */
     .topbar {
         display: flex;
         align-items: stretch;
@@ -191,7 +184,6 @@
         flex-shrink: 0;
     }
 
-    /* ── Brand ─────────────────────────────────────────────────────── */
     .brand-word {
         font-size: 15px;
         font-weight: 300;
@@ -203,7 +195,6 @@
         font-weight: 600;
     }
 
-    /* ── Icon + GitHub buttons ─────────────────────────────────────── */
     .ibtn {
         width: 32px;
         height: 32px;
@@ -251,7 +242,6 @@
         view-transition-name: theme-ico;
     }
 
-    /* ── Command palette trigger ───────────────────────────────────── */
     .kbtn {
         height: 32px;
         padding: 0 9px;
@@ -280,7 +270,6 @@
         .topbar {
             height: 52px;
         }
-        /* command palette needs a hardware keyboard */
         .kbtn {
             display: none;
         }

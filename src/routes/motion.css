@@ -1,17 +1,15 @@
 :root {
-  /* Durations */
-  --dur-fast:  0.12s;  /* hovers, presses, micro-interactions */
-  --dur-ui:    0.22s;  /* state transitions: cluster dim, edge emphasis, loader handoff, dropdowns */
-  --dur-base:  0.28s;  /* score morph, theme crossfade + icon, chip flip, fade-in */
-  --dur-entry: 0.50s;  /* node / edge entrance cascade */
 
-  /* Easings */
-  --ease-standard:  cubic-bezier(0.4, 0, 0.2, 1);    /* default in/out */
-  --ease-out:       cubic-bezier(0.22, 1, 0.36, 1);  /* decelerate (fade-in, pops) */
-  --ease-in-out:    cubic-bezier(0.65, 0, 0.35, 1);  /* loader bar stretch */
+  --dur-fast:  0.12s;
+  --dur-ui:    0.22s;
+  --dur-base:  0.28s;
+  --dur-entry: 0.50s;
+
+  --ease-standard:  cubic-bezier(0.4, 0, 0.2, 1);
+  --ease-out:       cubic-bezier(0.22, 1, 0.36, 1);
+  --ease-in-out:    cubic-bezier(0.65, 0, 0.35, 1);
 }
 
-/* ─── Keyframes ───────────────────────────────────────────────────── */
 @keyframes fadeIn {
   from { opacity: 0; transform: translateY(6px); }
   to   { opacity: 1; transform: none; }
@@ -82,7 +80,6 @@
   from { opacity: 0; transform: rotate(90deg) scale(0.5); }
 }
 
-/* ─── Shared animation utilities ──────────────────────────────────── */
 .fade-in { animation: fadeIn var(--dur-base) var(--ease-out) forwards; }
 .cl-ping { animation: cl-ping 0.72s var(--ease-out) forwards; }
 .cl-halo-disc { transition: opacity var(--dur-base) var(--ease-out); pointer-events: none; }

@@ -11,9 +11,8 @@
         deltaLabel,
     } from "$lib/viz/format";
 
-    // ── color scale endpoints for legend bars ─────────────────────────
-    const NODE_LO = metricNodeColor(0); // bad end (dark indigo)
-    const NODE_HI = metricNodeColor(1); // good end (yellow-green)
+    const NODE_LO = metricNodeColor(0);
+    const NODE_HI = metricNodeColor(1);
 
     let { mobileOpen = false, onClose } = $props<{
         mobileOpen?: boolean;
@@ -60,7 +59,6 @@
         };
     });
 
-    // Inspector state: which qubit detail to show
     let inspectedId = $derived(dashboardState.selectedId);
 
     let inspectedQubit = $derived.by(() => {
@@ -95,8 +93,6 @@
         dashboardState.selectedId = null;
     }
 
-    // Per-metric history of the inspected qubit across the device's snapshots,
-    // for the inline sparklines. Null when there isn't enough history to draw.
     let history = $derived.by(() => {
         if (inspectedId === null) return null;
         const snaps =
@@ -115,7 +111,6 @@
         };
     });
 
-    // Cluster-over-time strip: how often the found cluster beats the device median.
     let timelineAbove = $derived(
         dashboardState.clusterTimeline.filter(
             (p) => p.cluster != null && p.cluster >= p.device,
@@ -159,10 +154,7 @@
         </div>
     {/snippet}
 
-    <!-- ── TOP priority: node detail > failure > cluster > empty ── -->
-
     {#if inspectedQubit !== null && inspectedId !== null}
-        <!-- Node detail drill-down -->
         <div class="fade-in">
             {#if dashboardState.clusterStats}
                 <button class="insp-back" onclick={closeDetail}
@@ -326,7 +318,6 @@
             </div>
         </div>
     {:else if dashboardState.clusterStats}
-        <!-- Cluster result card -->
         {@const cs = dashboardState.clusterStats}
         <div class="cr fade-in">
             <div class="cr-top">
@@ -467,7 +458,6 @@
             </div>
         </div>
     {:else}
-        <!-- Empty state -->
         <div>
             <div class="eyebrow mb">Inspector</div>
             <div class="insp-empty">
@@ -478,7 +468,6 @@
         </div>
     {/if}
 
-    <!-- ── BOTTOM: reference medians + legend ── -->
     <div class="read-foot">
         <div class="eyebrow mb">{dashboardState.device} · medians</div>
         <div class="pr-row">
@@ -514,7 +503,6 @@
 
         <div class="eyebrow mb">Colour scale</div>
 
-        <!-- Color scale legend -->
         {#if dashboardState.filteredQubits.length > 0}
             <div class="leg-inline">
                 {#key dashboardState.metricMode}
@@ -536,8 +524,6 @@
                 {/key}
                 <div class="lg-pair">
                     <div class="lg-label">2Q gate error · edges</div>
-                    <!-- Edge quality is drawn as stroke width on the lattice
-                         (thick = low error), so the legend shows a taper, not a colour ramp. -->
                     <svg
                         class="lg-bar lg-bar-edge"
                         viewBox="0 0 100 8"
@@ -560,7 +546,6 @@
 </aside>
 
 <style>
-    /* ═══ Read rows + footer ═══ */
     .pr-row {
         display: flex;
         justify-content: space-between;
@@ -614,7 +599,6 @@
         margin: 22px 0;
     }
 
-    /* ═══ Inline colour-scale legend ═══ */
     .leg-inline .lg-label {
         font-size: 10.5px;
         letter-spacing: 0.09em;
@@ -649,7 +633,6 @@
         animation: fadeIn var(--dur-fast) var(--ease-out) both;
     }
 
-    /* ═══ Cluster result card ═══ */
     .cr {
         background: var(--surface);
         border: 1px solid var(--border);
@@ -747,7 +730,6 @@
         gap: 10px;
         padding: 8px 0;
         border-top: 1px solid var(--border);
-        /* rows land with a short cadence after the card itself fades in */
         animation: fadeIn var(--dur-base) var(--ease-out) both;
         animation-delay: calc(var(--i, 0) * 40ms);
     }
@@ -795,7 +777,6 @@
         padding: 6px 16px 0;
     }
 
-    /* ═══ Cluster-over-time strip ═══ */
     .cr-time {
         padding: 11px 16px 0;
         margin-top: 10px;
@@ -944,7 +925,6 @@
         font-weight: 600;
     }
 
-    /* ═══ Failure card ═══ */
     .cl-fail {
         background: var(--surface);
         border: 1px solid var(--border);
@@ -1087,7 +1067,6 @@
         height: 13px;
     }
 
-    /* ═══ Inspector drill-down ═══ */
     .insp-back {
         display: inline-flex;
         align-items: center;

@@ -1,7 +1,3 @@
-// UI / view-model types. Unlike the wire DTOs in `./wire`, these use the stable
-// `readout_error` name, carry never-undefined fields, and hold only what the
-// lattice and panels render. Built from raw snapshots by `$lib/domain/snapshot`.
-
 export type UiQubit = {
     id: number;
     T1: number | null;
@@ -31,14 +27,8 @@ export type MetricRanges = {
     twoq: [number, number];
 };
 
-// Node metric a user can colour the lattice by. 'stability' is cross-snapshot
-// (variance over the device's time series, see `$lib/domain/stability`) and is
-// scored outside `metricScore`, which only understands single-snapshot metrics.
 export type MetricMode = 'readout' | 'T1' | 'T2' | 'stability';
 
-// Direction + signed magnitude of a cluster metric relative to the device
-// median. Rendered as ▲/▼ pills in the read panel; formatted via
-// `deltaLabel` in `$lib/viz/format`.
 export type ClusterDelta = {
     dir: 'up' | 'down' | 'flat';
     magnitude: number;

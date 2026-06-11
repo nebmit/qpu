@@ -23,17 +23,7 @@ type SnapshotIndexOptions = {
     pause?: boolean;
 };
 
-/**
- * Single reactive store backing the dashboard. Holds user-controlled inputs and
- * loaded data, and exposes derived snapshots, filtering, and numeric view-models.
- *
- * View-models (`stats`, `medians`, `clusterStats`) intentionally expose raw
- * numbers; string formatting lives in `$lib/viz/format` and is applied by the
- * components that render them.
- */
 export class DashboardState {
-    // ── User-controlled inputs ──────────────────────────────────────────
-    // Picker options; replaced by the loaded dataset's `meta.backends`.
     devices = $state<string[]>(QPU_DEVICES);
     device = $state(QPU_DEVICES[0]);
     timeIdx = $state(0);
@@ -43,7 +33,6 @@ export class DashboardState {
     errorCutoffs = $state({ readoutPct: 12, twoqPct: 4 });
     coherenceCutoffs = $state({ minT1: 100, minT2: 50 });
 
-    // ── Selection + cluster result ──────────────────────────────────────
     cluster = $state<number[]>([]);
     clusterRequested = $state(0);
     clusterError = $state<string | null>(null);
@@ -54,15 +43,12 @@ export class DashboardState {
     hoveredEdge = $state<{ source: number; target: number } | null>(null);
     selectedId = $state<number | null>(null);
 
-    // ── Timeline playback ──────────────────────────────────────────────
     isPlaying = $state(false);
 
-    // ── Loaded data, keyed by device ────────────────────────────────────
     totalQubits = $state(TOTAL_QUBITS);
     baseEdgesByDevice = $state<Record<string, UiEdge[]>>({});
     snapshotsByDevice = $state<Record<string, UiSnapshot[]>>({});
 
-    // ── Derived: active snapshot + filtering ────────────────────────────
     connRules = $derived(topoToRules(this.clusterSize, this.topology));
 
     snap = $derived.by(() => {
@@ -91,7 +77,6 @@ export class DashboardState {
     totalConnections = $derived((this.connRules.endpoint || 0) + (this.connRules.chain || 0) + (this.connRules.junction || 0));
     timeCount = $derived((this.snapshotsByDevice[this.device] || []).length);
 
-    // ── Derived view-models (raw numbers; formatted at the view layer) ──
     stats = $derived.by(() => {
         const q = this.snap.qubits;
         const edges = this.snap.edges;
@@ -116,7 +101,6 @@ export class DashboardState {
         };
     });
 
-    // Aggregate metrics + Δ-vs-median for the active cluster.
     statsFor(members: number[]) {
         if (!members.length) return null;
         const cq = members.map((id) => this.snap.qubits[id]).filter(Boolean);
@@ -130,9 +114,7 @@ export class DashboardState {
         const ro = avg(cq.map((q) => q.readout_error));
         const twoq = ce.length ? avg(ce.map((e) => e.twoq_error)) : null;
 
-        // Compare a cluster metric to the device median; a ±2% dead-zone is "flat".
-        // `dir` is "up" when the cluster is better than median (accounting for
-        // metrics where lower is better, e.g. readout error).
+        // The ±2% dead zone avoids presenting insignificant median deltas as movement.
         const delta = (
             val: number | null,
             ref: number | null,
@@ -160,7 +142,6 @@ export class DashboardState {
 
     clusterStats = $derived.by(() => this.statsFor(this.cluster));
 
-    // ── Cross-snapshot view-models ───────────────────────────────────────
     stabilityScores = $derived.by(() => computeStability(this.snapshotsByDevice[this.device] || []));
     clusterTimeline = $derived.by(() =>
         this.cluster.length
@@ -168,7 +149,6 @@ export class DashboardState {
             : []
     );
 
-    // ── Actions ─────────────────────────────────────────────────────────
     clearCluster() {
         this.cluster = [];
         this.clusterError = null;
@@ -208,7 +188,6 @@ export class DashboardState {
         this.isPlaying = false;
     }
 
-    /** Move the timeline while keeping the cluster — for "view this cluster on that date". */
     jumpToSnapshot(idx: number) {
         this.setSnapshotIndex(idx);
     }

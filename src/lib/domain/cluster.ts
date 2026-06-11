@@ -2,27 +2,21 @@ import type { UiQubit, UiEdge } from '$lib/types';
 import { computeRanges, metricScore, edgeScore } from '$lib/domain/metrics';
 import { edgeKey } from '$lib/domain/lattice';
 
-// How many top-ranked seed nodes to try before picking the best grown cluster.
 // 14 ≈ 9% of the 156-qubit device — enough variety to escape local quality peaks
 // (different qubit degrees, component shapes) without making growth O(n²) costly.
 const CLUSTER_SEED_CANDIDATES = 14;
 
-// findCluster scoring weights. Node-metric weights blend three normalized
-// per-qubit metrics into a single quality (sum = 1). The growth blend balances
-// node quality against 2Q-edge quality when deciding which neighbour to add.
-// Exported so cross-snapshot analytics (stability, cluster-over-time) rank
-// qubits with the same value system as the finder.
 export const NODE_WEIGHTS = { readout: 0.4, T1: 0.3, T2: 0.3 };
 export const W_NODE = 0.6;
 export const W_EDGE = 0.4;
-// Topology nudges applied as additive bias to the gain score (range ≈ [0, 1]).
+
 // The overdegree penalty (0.5) must dominate a single node+edge gain (max 1.0)
 // to reliably block branching in linear mode — it is intentionally large.
 // The endpoint/junction bonuses (0.05) are tie-breakers only; keeping them an
 // order of magnitude smaller than the penalty means they never override quality.
-const TOPO_LINEAR_OVERDEGREE_PENALTY = 0.5; // blocks pushing a member past degree 2
-const TOPO_LINEAR_ENDPOINT_BONUS = 0.05;    // prefers extending a true chain endpoint
-const TOPO_BRANCHED_JUNCTION_BONUS = 0.05;  // prefers forming a junction over a leaf
+const TOPO_LINEAR_OVERDEGREE_PENALTY = 0.5;
+const TOPO_LINEAR_ENDPOINT_BONUS = 0.05;
+const TOPO_BRANCHED_JUNCTION_BONUS = 0.05;
 
 type ConnRules = { endpoint: number; chain: number; junction: number };
 
@@ -56,8 +50,6 @@ export type ClusterResult = {
     allowedCount: number;
 };
 
-// Create an adjacency list for a set of allowed nodes. Optionally filters edges
-// whose twoq_error exceeds a ceiling (used by largestComponent for error-aware routing).
 function buildAdj(
     allowed: Set<number>,
     edges: UiEdge[],
@@ -74,8 +66,6 @@ function buildAdj(
     return adj;
 }
 
-// Flood-fill all components. Returns per-node component size and the largest
-// component's node list, so callers can pick whichever they need.
 function analyzeComponents(adj: Map<number, number[]>): {
     sizeByNode: Map<number, number>;
     largest: number[];
@@ -107,8 +97,6 @@ export const TOPOLOGIES: { value: Topology; label: string }[] = [
     { value: 'branched', label: 'Branched' }
 ];
 
-// Quality context used by the finder: per-node and per-edge quality in [0,1],
-// normalized over the allowed candidate pool.
 function buildQualityContext(qubits: UiQubit[], edges: UiEdge[], allowed: Set<number>) {
     const byId = new Map(qubits.map((q) => [q.id, q]));
     const allowedQubits = qubits.filter((q) => allowed.has(q.id));
@@ -123,8 +111,7 @@ function buildQualityContext(qubits: UiQubit[], edges: UiEdge[], allowed: Set<nu
             NODE_WEIGHTS.T2 * metricScore(q, 'T2', R)
         );
     };
-    // Unmeasured links are neutral (0.5) rather than worst, so missing data
-    // doesn't unfairly reject an edge.
+    // Unmeasured links are neutral rather than worst, so missing data doesn't unfairly reject an edge.
     const edgeQuality = (e: UiEdge) =>
         typeof e.twoq_error === 'number' && Number.isFinite(e.twoq_error) ? edgeScore(e, R) : 0.5;
     return { allowedEdges, nodeQuality, edgeQuality };
@@ -136,12 +123,10 @@ export const TOPO_HINT: Record<Topology, string> = {
     branched: 'Tree-like — junctions with reaching endpoints.'
 };
 
-// Map a target size + topology choice onto the connectivity-degree rules the
-// finder seeds from: endpoint = deg-1, chain = deg-2, junction = deg-3.
 export function topoToRules(n: number, topo: Topology): ConnRules {
     if (topo === 'linear') return { endpoint: 0, chain: n, junction: 0 };
     if (topo === 'branched') return { endpoint: Math.floor(n / 2), chain: 0, junction: Math.ceil(n / 2) };
-    return { endpoint: 0, chain: 0, junction: n }; // compact
+    return { endpoint: 0, chain: 0, junction: n };
 }
 
 export function findCluster(
@@ -169,33 +154,24 @@ export function findCluster(
         return { cluster: [], requested: total, maxComponent, allowedCount: ids.length };
     }
 
-    // topoToRules() encodes the requested topology in connRules: a chain budget
-    // means linear, an endpoint budget means branched, otherwise compact.
     const mode: Topology =
         connRules.chain > 0 ? 'linear' : connRules.endpoint > 0 ? 'branched' : 'compact';
 
-    // Normalize all metrics over the allowed candidate pool so scoring adapts to
-    // each snapshot, reusing the same machinery the lattice/read panels use.
     const { allowedEdges, nodeQuality, edgeQuality } = buildQualityContext(qubits, edges, allowed);
 
-    // Precompute edge quality by qubit-pair key for O(1) lookup during growth.
     const linkQ = new Map<string, number>();
     for (const e of allowedEdges) linkQ.set(edgeKey(e.source, e.target), edgeQuality(e));
 
-    // Quality of the edge between two adjacent qubits (0.5 if no edge record).
     const linkQuality = (a: number, b: number) => linkQ.get(edgeKey(a, b)) ?? 0.5;
 
-    // Internal degree of a cluster node = how many of its neighbours are members.
     const internalDegree = (id: number, members: Set<number>) =>
         (adj.get(id) || []).reduce((n, nb) => n + (members.has(nb) ? 1 : 0), 0);
 
-    // Seed from the best qubits, preferring degrees that suit the topology.
     const needDeg = new Set<number>();
     if (connRules.endpoint > 0) needDeg.add(1);
     if (connRules.chain > 0) needDeg.add(2);
     if (connRules.junction > 0) needDeg.add(3);
-    // Only seed from nodes whose component is big enough to hold the cluster, so
-    // growth always reaches exactly `needed`.
+
     const sortedIds = ids
         .filter((id) => (componentSize.get(id) || 0) >= needed)
         .sort((a, b) => {
@@ -204,12 +180,8 @@ export function findCluster(
             return da - db || nodeQuality(b) - nodeQuality(a);
         });
 
-    // Grow a connected cluster from one or more seed members, repeatedly adding
-    // the frontier node with the highest marginal gain (node quality +
-    // connecting-edge quality + a soft topology nudge).
     const grow = (seedMembers: number[]): number[] => {
         const members = new Set(seedMembers);
-        // links from each frontier node into the current cluster
         const frontier = new Map<number, number[]>();
         const addFrontier = (id: number) => {
             for (const nb of adj.get(id) || []) {
@@ -228,17 +200,15 @@ export function findCluster(
                 const edgeQs = links.map((m) => linkQuality(nb, m));
                 const connectivity =
                     mode === 'compact'
-                        ? edgeQs.reduce((s, q) => s + q, 0) // reward density
-                        : Math.max(...edgeQs);              // single best link
+                        ? edgeQs.reduce((s, q) => s + q, 0)
+                        : Math.max(...edgeQs);
 
                 let topoBias = 0;
                 if (mode === 'linear') {
-                    // Discourage branching: penalize pushing a member past degree 2.
                     const wouldOverDegree = links.some((m) => internalDegree(m, members) >= 2);
                     if (wouldOverDegree) topoBias -= TOPO_LINEAR_OVERDEGREE_PENALTY;
                     if (links.length === 1) topoBias += TOPO_LINEAR_ENDPOINT_BONUS;
                 } else if (mode === 'branched') {
-                    // Reward attaching where it forms a junction (member gains degree).
                     if (links.some((m) => internalDegree(m, members) >= 2)) {
                         topoBias += TOPO_BRANCHED_JUNCTION_BONUS;
                     }
@@ -258,8 +228,6 @@ export function findCluster(
         return [...members];
     };
 
-    // Objective for ranking finished clusters: mean node quality blended with
-    // mean internal-edge quality.
     const clusterScore = (members: number[]) => {
         const set = new Set(members);
         const nodeMean =
@@ -275,7 +243,7 @@ export function findCluster(
     let bestScore = -Infinity;
     for (const seed of sortedIds.slice(0, CLUSTER_SEED_CANDIDATES)) {
         const cluster = grow([seed]);
-        if (cluster.length !== needed) continue; // never return a short cluster
+        if (cluster.length !== needed) continue;
         const score = clusterScore(cluster);
         if (score > bestScore) {
             bestScore = score;

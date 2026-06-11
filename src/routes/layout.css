@@ -9,14 +9,6 @@
   --font-mono: 'Geist Mono Variable', 'Geist Mono', monospace;
 }
 
-/* ═══════════════════════════════════════════════════════════════════
-   Design tokens
-   Component-specific styles live in each component's scoped <style>;
-   this file holds only tokens, resets, the cross-component plate
-   skeleton, and atoms shared by two or more components.
-   ═══════════════════════════════════════════════════════════════════ */
-
-/* ── Light — soft cool-tinted porcelain · indigo accent · viridis ── */
 :root {
   --bg:           #ececf5;
   --surface:      #ffffff;
@@ -56,7 +48,6 @@
   --radius-md: 10px;
   --radius-lg: 14px;
 
-  /* Semantic z-index scale (stage overlays < backdrop < sheet < nav < palette < loader) */
   --z-tooltip:  50;
   --z-stage-ui: 60;
   --z-backdrop: 95;
@@ -66,7 +57,6 @@
   --z-loader:   130;
 }
 
-/* ── Dark ── */
 [data-theme='dark'] {
   --bg:           #0e0f15;
   --surface:      #171922;
@@ -117,9 +107,6 @@ html, body {
   font-variant-numeric: tabular-nums;
 }
 
-/* ─── Keyboard focus ────────────────────────────────────────────────
-   One visible focus contract for every interactive control. Mouse focus
-   stays quiet; keyboard focus is unmistakable. */
 :is(button, select, a, input[type=range], [role='button']):focus-visible {
   outline: 2px solid var(--accent);
   outline-offset: 2px;
@@ -127,18 +114,12 @@ html, body {
 }
 input[type=range]:focus-visible { border-radius: 6px; }
 
-/* ─── Scrollbar ─────────────────────────────────────────────────── */
 ::-webkit-scrollbar { width: 3px; }
 ::-webkit-scrollbar-thumb {
   background: var(--border-mid);
   border-radius: 2px;
 }
 
-/* ═══════════════════════════════════════════════════════════════════
-   PLATE layout — the cross-component three-column skeleton.
-   Element classes live in OperatePanel / Topbar / ReadPanel / +page,
-   but the grid contract is kept here in one place.
-   ═══════════════════════════════════════════════════════════════════ */
 .plate          { width: 100vw; height: 100vh; display: flex; flex-direction: column; overflow: hidden; }
 .plate-body     { flex: 1; display: flex; min-height: 0; }
 .plate-operate  { width: 272px; background: var(--panel); border-right: 1px solid var(--border); padding: 24px 20px; overflow-y: auto; flex-shrink: 0; }
@@ -146,15 +127,9 @@ input[type=range]:focus-visible { border-radius: 6px; }
 .fig-canvas     { flex: 1; min-width: 0; position: relative; background: var(--surface); overflow: hidden; }
 .plate-read     { width: 300px; background: var(--panel); border-left: 1px solid var(--border); padding: 22px 20px; overflow-y: auto; flex-shrink: 0; display: flex; flex-direction: column; }
 
-/* ═══════════════════════════════════════════════════════════════════
-   Shared atoms — used by two or more components
-   ═══════════════════════════════════════════════════════════════════ */
-
-/* Section eyebrow label (OperatePanel + ReadPanel) */
 .eyebrow { font-size: 10px; font-weight: 500; letter-spacing: 0.1em; text-transform: uppercase; color: var(--text-3); white-space: nowrap; }
 .eyebrow.mb { display: block; margin-bottom: 12px; }
 
-/* Segmented control (Topbar metric selector + OperatePanel topology) */
 .seg         { display: inline-flex; gap: 2px; padding: 3px; border-radius: 8px; background: var(--read-bg); }
 .seg.full    { width: 100%; }
 .seg-btn     { flex: 0 0 auto; border: none; background: transparent; color: var(--text-3); font-family: var(--font-sans);
@@ -164,10 +139,8 @@ input[type=range]:focus-visible { border-radius: 6px; }
 .seg-btn:hover     { color: var(--text-2); }
 .seg-btn.on        { color: var(--accent); background: var(--surface); box-shadow: 0 1px 3px rgba(0,0,0,0.10); }
 
-/* ── Visibility utilities ───────────────────────────────────────────── */
 .desk-only { display: inline; }
 
-/* ── Sheet handle (mobile only, shown via media query) ──────────────── */
 .sheet-handle {
   display: none;
   justify-content: center;
@@ -183,7 +156,6 @@ input[type=range]:focus-visible { border-radius: 6px; }
 }
 .sheet-handle-bar { width: 34px; height: 4px; border-radius: 2px; background: var(--border-mid); }
 
-/* ── Mobile backdrop ────────────────────────────────────────────────── */
 .mob-backdrop {
   display: none;
   position: absolute;
@@ -193,7 +165,6 @@ input[type=range]:focus-visible { border-radius: 6px; }
 }
 .mob-backdrop.show { display: block; }
 
-/* ── Mobile bottom nav (hidden until mobile breakpoint) ─────────────── */
 .mob-nav { display: none; }
 .mob-badge {
   display: none;
@@ -210,26 +181,19 @@ input[type=range]:focus-visible { border-radius: 6px; }
   animation: badge-pop var(--dur-fast) var(--ease-out) both;
 }
 
-/* ═══════════════════════════════════════════════════════════════════
-   TABLET  768–1199 px — narrower panels
-   ═══════════════════════════════════════════════════════════════════ */
 @media (min-width: 768px) and (max-width: 1199px) {
   .plate-operate { width: 215px; padding: 18px 14px; }
   .plate-read    { width: 230px; padding: 18px 14px; }
 }
 
-/* ═══════════════════════════════════════════════════════════════════
-   MOBILE  < 768 px — bottom-sheet panels, full-screen lattice, bottom nav
-   ═══════════════════════════════════════════════════════════════════ */
 @media (max-width: 767px) {
   .desk-only { display: none; }
-  /* plate-body: positioning root for absolute children */
+
   .plate-body {
     position: relative;
     overflow: hidden;
   }
 
-  /* lattice fills everything except the bottom nav strip */
   .plate-stage {
     position: absolute;
     inset: 0;
@@ -237,7 +201,6 @@ input[type=range]:focus-visible { border-radius: 6px; }
   }
   .fig-canvas { width: 100%; height: 100%; }
 
-  /* side panels become bottom sheets */
   .plate-operate,
   .plate-read {
     position: absolute;
@@ -263,14 +226,11 @@ input[type=range]:focus-visible { border-radius: 6px; }
   .plate-operate.mob-open,
   .plate-read.mob-open { transform: translateY(0); }
 
-  /* sheet handle visible on mobile */
   .sheet-handle { display: flex; }
 
-  /* read-foot: let it flow naturally in the sheet */
   .plate-read  { display: block; }
   .read-foot   { margin-top: 20px; padding-top: 0; }
 
-  /* mobile nav */
   .mob-nav {
     display: flex;
     position: absolute;
@@ -303,13 +263,9 @@ input[type=range]:focus-visible { border-radius: 6px; }
   .mob-tab.on { color: var(--accent); }
   .mob-tab svg { width: 18px; height: 18px; flex-shrink: 0; }
 
-  /* comfortable touch target for slider thumbs */
   input[type=range]::-webkit-slider-thumb { width: 16px; height: 16px; }
 }
 
-/* ═══════════════════════════════════════════════════════════════════
-   Range + number inputs (base element styling)
-   ═══════════════════════════════════════════════════════════════════ */
 input[type=range] {
   -webkit-appearance: none; appearance: none;
   width: 100%; height: 4px;
