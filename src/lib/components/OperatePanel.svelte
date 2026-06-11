@@ -1,6 +1,6 @@
 <script lang="ts">
     import { onDestroy } from "svelte";
-    import { dashboardState } from "$lib/state/dashboard.svelte";
+    import { dashboardState, INPUT_LIMITS } from "$lib/state/dashboard.svelte";
     import { TOPOLOGIES, TOPO_HINT } from "$lib/domain/cluster";
 
     let {
@@ -13,16 +13,8 @@
         onFind?: () => void;
     }>();
 
-    let timeStart = $derived.by(() => {
-        const list =
-            dashboardState.snapshotsByDevice[dashboardState.device] || [];
-        return list[0]?.date || "—";
-    });
-    let timeEnd = $derived.by(() => {
-        const list =
-            dashboardState.snapshotsByDevice[dashboardState.device] || [];
-        return list[list.length - 1]?.date || "—";
-    });
+    let timeStart = $derived(dashboardState.deviceSnapshots[0]?.date || "—");
+    let timeEnd = $derived(dashboardState.deviceSnapshots.at(-1)?.date || "—");
 
     const clearClusterDuringSliderInput = () => {
         dashboardState.pauseTimeline();
@@ -269,8 +261,8 @@
             </div>
             <input
                 type="range"
-                min="0"
-                max="100"
+                min={INPUT_LIMITS.readoutPct.min}
+                max={INPUT_LIMITS.readoutPct.max}
                 step="0.1"
                 bind:value={dashboardState.errorCutoffs.readoutPct}
                 oninput={clearClusterDuringSliderInput}
@@ -293,8 +285,8 @@
             </div>
             <input
                 type="range"
-                min="0"
-                max="100"
+                min={INPUT_LIMITS.twoqPct.min}
+                max={INPUT_LIMITS.twoqPct.max}
                 step="0.1"
                 bind:value={dashboardState.errorCutoffs.twoqPct}
                 oninput={clearClusterDuringSliderInput}
@@ -322,8 +314,8 @@
             </div>
             <input
                 type="range"
-                min="0"
-                max="500"
+                min={INPUT_LIMITS.minT1.min}
+                max={INPUT_LIMITS.minT1.max}
                 step="1"
                 bind:value={dashboardState.coherenceCutoffs.minT1}
                 oninput={clearClusterDuringSliderInput}
@@ -344,8 +336,8 @@
             </div>
             <input
                 type="range"
-                min="0"
-                max="500"
+                min={INPUT_LIMITS.minT2.min}
+                max={INPUT_LIMITS.minT2.max}
                 step="1"
                 bind:value={dashboardState.coherenceCutoffs.minT2}
                 oninput={clearClusterDuringSliderInput}
@@ -372,8 +364,8 @@
             </div>
             <input
                 type="range"
-                min="2"
-                max="50"
+                min={INPUT_LIMITS.clusterSize.min}
+                max={INPUT_LIMITS.clusterSize.max}
                 step="1"
                 bind:value={dashboardState.clusterSize}
                 oninput={clearClusterDuringSliderInput}

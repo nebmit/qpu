@@ -5,8 +5,24 @@ export const TOTAL_QUBITS = 156;
 export const edgeKey = (a: number, b: number): string =>
     `${Math.min(a, b)}-${Math.max(a, b)}`;
 
-function buildLayout() {
-    const pos = [];
+type LayoutPosition = { id: number; row: number; col: number };
+
+function makeEdgeCollector() {
+    const seen = new Set<string>();
+    const edges: { source: number; target: number }[] = [];
+    const add = (a?: number, b?: number) => {
+        if (a == null || b == null) return;
+        const k = edgeKey(a, b);
+        if (!seen.has(k)) {
+            seen.add(k);
+            edges.push({ source: a, target: b });
+        }
+    };
+    return { edges, add };
+}
+
+function buildLayout(): LayoutPosition[] {
+    const pos: LayoutPosition[] = [];
     let id = 0;
     for (let row = 0; id < TOTAL_QUBITS; row++) {
         const even = row % 2 === 0,
@@ -19,18 +35,9 @@ function buildLayout() {
     return pos;
 }
 
-function buildEdges(positions: { id: number; row: number; col: number }[]) {
+function buildEdges(positions: LayoutPosition[]) {
     const map = new Map(positions.map((p) => [`${p.row},${p.col}`, p.id]));
-    const seen = new Set();
-    const edges: { source: number; target: number }[] = [];
-    const add = (a?: number, b?: number) => {
-        if (a == null || b == null) return;
-        const k = `${Math.min(a, b)}-${Math.max(a, b)}`;
-        if (!seen.has(k)) {
-            seen.add(k);
-            edges.push({ source: a, target: b });
-        }
-    };
+    const { edges, add } = makeEdgeCollector();
     for (const p of positions) {
         add(p.id, map.get(`${p.row},${p.col + 2}`));
         if (p.row % 2 === 1) {
@@ -44,15 +51,8 @@ function buildEdges(positions: { id: number; row: number; col: number }[]) {
 }
 
 export function buildEdgesFromCoupling(coupling: [number, number][]) {
-    const seen = new Set<string>();
-    const edges: { source: number; target: number }[] = [];
-    for (const [a, b] of coupling) {
-        const k = `${Math.min(a, b)}-${Math.max(a, b)}`;
-        if (!seen.has(k)) {
-            seen.add(k);
-            edges.push({ source: a, target: b });
-        }
-    }
+    const { edges, add } = makeEdgeCollector();
+    for (const [a, b] of coupling) add(a, b);
     return edges;
 }
 

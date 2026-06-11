@@ -182,7 +182,7 @@
                 seed = id;
             }
         }
-        const depth = new SvelteMap<number, number>([[seed, 0]]);
+        const visited = new SvelteSet([seed]);
         const order = [seed];
         const queue = [seed];
         while (queue.length) {
@@ -198,15 +198,15 @@
                 );
             });
             for (const nb of nbrs) {
-                if (!depth.has(nb)) {
-                    depth.set(nb, (depth.get(cur) ?? 0) + 1);
+                if (!visited.has(nb)) {
+                    visited.add(nb);
                     order.push(nb);
                     queue.push(nb);
                 }
             }
         }
         for (const id of cluster) {
-            if (!depth.has(id)) order.push(id);
+            if (!visited.has(id)) order.push(id);
         }
         return order;
     }

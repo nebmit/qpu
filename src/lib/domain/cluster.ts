@@ -18,7 +18,17 @@ const TOPO_LINEAR_OVERDEGREE_PENALTY = 0.5;
 const TOPO_LINEAR_ENDPOINT_BONUS = 0.05;
 const TOPO_BRANCHED_JUNCTION_BONUS = 0.05;
 
-type ConnRules = { endpoint: number; chain: number; junction: number };
+const RELAX_STEPS: ClusterFilters = {
+    readoutPct: 6,
+    twoqPct: 2,
+    minT1: 50,
+    minT2: 30
+};
+
+export type ConnRules = { endpoint: number; chain: number; junction: number };
+
+export const ruleTotal = (rules: ConnRules): number =>
+    rules.endpoint + rules.chain + rules.junction;
 
 export type Topology = 'compact' | 'linear' | 'branched';
 
@@ -141,7 +151,7 @@ export function findCluster(
     const deg = new Map<number, number>();
     for (const id of allowed) deg.set(id, adj.get(id)!.length);
 
-    const total = (connRules.endpoint || 0) + (connRules.chain || 0) + (connRules.junction || 0);
+    const total = ruleTotal(connRules);
     if (total === 0) {
         return { cluster: [], requested: 0, maxComponent: 0, allowedCount: allowed.size, reason: 'ok' };
     }
@@ -295,22 +305,17 @@ export function predictRelaxations(
         const addC = comp - baseComp;
         if (addQ > 0 || addC > 0) candidates.push({ key, label, addQ, comp, filters: nf });
     };
-    mk('readoutPct', `Readout ≤ ${Math.min(100, filters.readoutPct + 6).toFixed(0)}%`, {
+    const relaxedReadout = Math.min(100, filters.readoutPct + RELAX_STEPS.readoutPct);
+    mk('readoutPct', `Readout ≤ ${relaxedReadout.toFixed(0)}%`, {
         ...filters,
-        readoutPct: Math.min(100, filters.readoutPct + 6)
+        readoutPct: relaxedReadout
     });
-    mk('minT1', `T₁ ≥ ${Math.max(0, filters.minT1 - 50)} μs`, {
-        ...filters,
-        minT1: Math.max(0, filters.minT1 - 50)
-    });
-    mk('minT2', `T₂ ≥ ${Math.max(0, filters.minT2 - 30)} μs`, {
-        ...filters,
-        minT2: Math.max(0, filters.minT2 - 30)
-    });
-    mk('twoqPct', `2Q ≤ ${Math.min(100, filters.twoqPct + 2).toFixed(0)}%`, {
-        ...filters,
-        twoqPct: Math.min(100, filters.twoqPct + 2)
-    });
+    const relaxedT1 = Math.max(0, filters.minT1 - RELAX_STEPS.minT1);
+    mk('minT1', `T₁ ≥ ${relaxedT1} μs`, { ...filters, minT1: relaxedT1 });
+    const relaxedT2 = Math.max(0, filters.minT2 - RELAX_STEPS.minT2);
+    mk('minT2', `T₂ ≥ ${relaxedT2} μs`, { ...filters, minT2: relaxedT2 });
+    const relaxedTwoq = Math.min(100, filters.twoqPct + RELAX_STEPS.twoqPct);
+    mk('twoqPct', `2Q ≤ ${relaxedTwoq.toFixed(0)}%`, { ...filters, twoqPct: relaxedTwoq });
     candidates.sort((a, b) => b.comp - a.comp || b.addQ - a.addQ);
     return {
         baseQ: baseAllowed.size,

@@ -1,13 +1,14 @@
 import { SvelteSet } from 'svelte/reactivity';
 import { TOTAL_QUBITS, buildBaseEdges } from '$lib/domain/lattice';
 import { computeRanges } from '$lib/domain/metrics';
-import { avg, median } from '$lib/domain/statistics';
+import { avg, deltaVsReference, median } from '$lib/domain/statistics';
 import { buildUiSnapshot, emptySnapshot } from '$lib/domain/snapshot';
 import {
     findCluster,
     largestComponent,
     predictRelaxations,
     qualifyQubits,
+    ruleTotal,
     topoToRules,
     type ClusterFilters,
     type RelaxSuggestions,
@@ -16,7 +17,7 @@ import {
 import { computeStability, clusterQualityOverTime } from '$lib/domain/stability';
 import { METRIC_OPTIONS } from '$lib/domain/metrics';
 import { QPU_DEVICES } from '$lib/data/calibration';
-import type { Dataset, UiEdge, UiSnapshot, MetricMode, ClusterDelta } from '$lib/types';
+import type { Dataset, UiEdge, UiSnapshot, MetricMode } from '$lib/types';
 
 type SnapshotIndexOptions = {
     clearCluster?: boolean;
@@ -29,6 +30,14 @@ const DEFAULT_CLUSTER_SIZE = 12;
 const DEFAULT_TOPOLOGY: Topology = 'compact';
 const DEFAULT_ERROR_CUTOFFS = { readoutPct: 12, twoqPct: 4 };
 const DEFAULT_COHERENCE_CUTOFFS = { minT1: 100, minT2: 50 };
+
+export const INPUT_LIMITS = {
+    readoutPct: { min: 0, max: 100 },
+    twoqPct: { min: 0, max: 100 },
+    minT1: { min: 0, max: 500 },
+    minT2: { min: 0, max: 500 },
+    clusterSize: { min: 2, max: 50 }
+} as const;
 
 export class DashboardState {
     devices = $state<string[]>(QPU_DEVICES);
@@ -59,8 +68,10 @@ export class DashboardState {
 
     connRules = $derived(topoToRules(this.clusterSize, this.topology));
 
+    deviceSnapshots = $derived(this.snapshotsByDevice[this.device] || []);
+
     snap = $derived.by(() => {
-        const list = this.snapshotsByDevice[this.device] || [];
+        const list = this.deviceSnapshots;
         if (!list.length) {
             const baseEdges = this.baseEdgesByDevice[this.device] || buildBaseEdges();
             return emptySnapshot(baseEdges, this.totalQubits);
@@ -82,8 +93,8 @@ export class DashboardState {
     });
 
     ranges = $derived(computeRanges(this.filteredQubits, this.filteredEdges));
-    totalConnections = $derived((this.connRules.endpoint || 0) + (this.connRules.chain || 0) + (this.connRules.junction || 0));
-    timeCount = $derived((this.snapshotsByDevice[this.device] || []).length);
+    totalConnections = $derived(ruleTotal(this.connRules));
+    timeCount = $derived(this.deviceSnapshots.length);
 
     stats = $derived.by(() => {
         const q = this.snap.qubits;
@@ -122,39 +133,24 @@ export class DashboardState {
         const ro = avg(cq.map((q) => q.readout_error));
         const twoq = ce.length ? avg(ce.map((e) => e.twoq_error)) : null;
 
-        // The ±2% dead zone avoids presenting insignificant median deltas as movement.
-        const delta = (
-            val: number | null,
-            ref: number | null,
-            lowerBetter = false
-        ): ClusterDelta | null => {
-            if (val == null || ref == null || ref === 0) return null;
-            const magnitude = (val - ref) / ref;
-            const good = lowerBetter ? magnitude < -0.02 : magnitude > 0.02;
-            const bad = lowerBetter ? magnitude > 0.02 : magnitude < -0.02;
-            return { dir: good ? 'up' : bad ? 'down' : 'flat', magnitude };
-        };
-
         const med = this.medians;
         return {
             T1,
             T2,
             ro,
             twoq,
-            deltaT1: delta(T1, med.T1, false),
-            deltaT2: delta(T2, med.T2, false),
-            deltaRo: delta(ro, med.ro, true),
-            deltaTwoq: delta(twoq, med.twoq, true)
+            deltaT1: deltaVsReference(T1, med.T1, false),
+            deltaT2: deltaVsReference(T2, med.T2, false),
+            deltaRo: deltaVsReference(ro, med.ro, true),
+            deltaTwoq: deltaVsReference(twoq, med.twoq, true)
         };
     }
 
     clusterStats = $derived.by(() => this.statsFor(this.cluster));
 
-    stabilityScores = $derived.by(() => computeStability(this.snapshotsByDevice[this.device] || []));
+    stabilityScores = $derived.by(() => computeStability(this.deviceSnapshots));
     clusterTimeline = $derived.by(() =>
-        this.cluster.length
-            ? clusterQualityOverTime(this.cluster, this.snapshotsByDevice[this.device] || [])
-            : []
+        this.cluster.length ? clusterQualityOverTime(this.cluster, this.deviceSnapshots) : []
     );
 
     clearCluster() {
@@ -178,7 +174,7 @@ export class DashboardState {
         this.topology = DEFAULT_TOPOLOGY;
         this.errorCutoffs = { ...DEFAULT_ERROR_CUTOFFS };
         this.coherenceCutoffs = { ...DEFAULT_COHERENCE_CUTOFFS };
-        const list = this.snapshotsByDevice[this.device] || [];
+        const list = this.deviceSnapshots;
         this.timeIdx = list.length ? list.length - 1 : 0;
         this.hoveredId = null;
         this.hoveredEdge = null;
@@ -187,7 +183,7 @@ export class DashboardState {
     }
 
     setSnapshotIndex(idx: number, options: SnapshotIndexOptions = {}) {
-        const list = this.snapshotsByDevice[this.device] || [];
+        const list = this.deviceSnapshots;
         if (!list.length) {
             this.timeIdx = 0;
             this.pauseTimeline();
@@ -217,6 +213,12 @@ export class DashboardState {
 
     jumpToSnapshot(idx: number) {
         this.setSnapshotIndex(idx);
+    }
+
+    stepSnapshot(dir: number) {
+        const next = this.timeIdx + dir;
+        if (next < 0 || next > this.timeCount - 1) return;
+        this.setSnapshotIndex(next, { clearCluster: true });
     }
 
     cycleMetric() {
@@ -263,9 +265,8 @@ export class DashboardState {
             this.findFailed = true;
             this.findFailReason = result.reason === 'ok' ? 'region-too-small' : result.reason;
             const filters = this.clusterFilters();
-            const qualified = qualifyQubits(filters, this.snap.qubits);
             this.nearestCluster = largestComponent(
-                qualified,
+                this.allowedQubitIds,
                 this.snap.edges,
                 filters.twoqPct / 100
             );
@@ -285,10 +286,9 @@ export class DashboardState {
     }
 
     shrinkToNearestAndRetry() {
-        const allowed = new SvelteSet(this.allowedQubitIds);
         const target = this.nearestCluster.length >= 2
             ? this.nearestCluster.length
-            : Math.min(allowed.size, 8);
+            : Math.min(this.allowedQubitIds.size, 8);
         this.clusterSize = Math.max(2, target);
         this.runFindCluster();
     }
@@ -300,8 +300,8 @@ export class DashboardState {
         this.runFindCluster();
     }
 
-    ensureTimeIdx(dev = this.device) {
-        const list = this.snapshotsByDevice[dev] || [];
+    ensureTimeIdx() {
+        const list = this.deviceSnapshots;
         if (!list.length) {
             this.timeIdx = 0;
             return;
@@ -315,7 +315,7 @@ export class DashboardState {
         this.device = dev;
         this.pauseTimeline();
         this.clearCluster();
-        this.ensureTimeIdx(dev);
+        this.ensureTimeIdx();
     }
 
     applyDataset(dataset: Dataset) {

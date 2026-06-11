@@ -1,7 +1,6 @@
 <script lang="ts">
     import { onMount } from "svelte";
     import { Tween } from "svelte/motion";
-    import { SvelteURLSearchParams } from "svelte/reactivity";
     import { replaceState } from "$app/navigation";
     import { resolve } from "$app/paths";
     import { DUR, ease } from "$lib/viz/motion";
@@ -11,9 +10,9 @@
     import Lattice from "$lib/components/Lattice.svelte";
     import CommandPalette from "$lib/components/CommandPalette.svelte";
     import { dashboardState } from "$lib/state/dashboard.svelte";
+    import { applyUrlState, serializeUrlQuery } from "$lib/state/url";
     import { BASE_POS } from "$lib/domain/lattice";
-    import type { MetricMode, Positions } from "$lib/types";
-    import type { Topology } from "$lib/domain/cluster";
+    import type { Positions } from "$lib/types";
     import { loadData } from "$lib/data/calibration";
     import { microseconds, percent, exponential } from "$lib/viz/format";
 
@@ -33,6 +32,9 @@
     let mediaQuery: MediaQueryList | null = null;
     let paletteOpen = $state(false);
     let loaderWidth = $state(1280);
+
+    const LOADER_EXIT_MS = 450;
+    const ENTRY_SETTLE_MS = 1300;
 
     let hasResults = $derived(
         dashboardState.cluster.length > 0 || dashboardState.findFailed,
@@ -64,16 +66,19 @@
             });
             positionsByDevice = positions;
             dashboardState.applyDataset(dataset);
-            applyUrlState();
+            applyUrlState(
+                dashboardState,
+                new URLSearchParams(window.location.search),
+            );
             await smoothProgress.set(1);
             loadStatus = "transitioning";
             entryAnimating = true;
             setTimeout(() => {
                 loadStatus = "ready";
-            }, 450);
+            }, LOADER_EXIT_MS);
             setTimeout(() => {
                 entryAnimating = false;
-            }, 1300);
+            }, ENTRY_SETTLE_MS);
         } catch (err) {
             console.error("Failed to load calibration data", err);
             loadError = err instanceof Error ? err.message : "Unknown error";
@@ -102,73 +107,10 @@
         return () => mediaQuery?.removeEventListener("change", handle);
     });
 
-    const TOPOLOGY_VALUES: Topology[] = ["compact", "linear", "branched"];
-    const METRIC_VALUES: MetricMode[] = ["readout", "T1", "T2", "stability"];
-
-    function applyUrlState() {
-        const params = new URLSearchParams(window.location.search);
-        if ([...params.keys()].length === 0) return;
-        const num = (key: string) => {
-            const v = params.get(key);
-            if (v == null) return null;
-            const n = Number(v);
-            return Number.isFinite(n) ? n : null;
-        };
-        const clamp = (v: number, lo: number, hi: number) =>
-            Math.min(hi, Math.max(lo, v));
-
-        const dev = params.get("dev");
-        if (dev && dashboardState.devices.includes(dev))
-            dashboardState.setDevice(dev);
-        const ro = num("ro");
-        if (ro != null) dashboardState.errorCutoffs.readoutPct = clamp(ro, 0, 100);
-        const tq = num("2q");
-        if (tq != null) dashboardState.errorCutoffs.twoqPct = clamp(tq, 0, 100);
-        const t1 = num("t1");
-        if (t1 != null) dashboardState.coherenceCutoffs.minT1 = clamp(t1, 0, 500);
-        const t2 = num("t2");
-        if (t2 != null) dashboardState.coherenceCutoffs.minT2 = clamp(t2, 0, 500);
-        const n = num("n");
-        if (n != null) dashboardState.clusterSize = clamp(Math.round(n), 2, 50);
-        const topo = params.get("topo") as Topology | null;
-        if (topo && TOPOLOGY_VALUES.includes(topo)) dashboardState.topology = topo;
-        const m = params.get("m") as MetricMode | null;
-        if (m && METRIC_VALUES.includes(m)) dashboardState.metricMode = m;
-        const t = num("t");
-        if (t != null) dashboardState.jumpToSnapshot(Math.round(t));
-        const cl = params.get("cl");
-        if (cl) {
-            const ids = cl
-                .split(",")
-                .map(Number)
-                .filter((x) => Number.isInteger(x) && x >= 0);
-            const valid = [...new Set(ids)].filter((id) =>
-                dashboardState.allowedQubitIds.has(id),
-            );
-            if (valid.length >= 2) {
-                dashboardState.cluster = valid;
-                dashboardState.clusterRequested = valid.length;
-                dashboardState.findFailed = false;
-            }
-        }
-    }
-
     $effect(() => {
         if (loadStatus !== "ready") return;
         if (dashboardState.isPlaying) return;
-        const params = new SvelteURLSearchParams();
-        params.set("dev", dashboardState.device);
-        params.set("t", String(dashboardState.timeIdx));
-        params.set("ro", String(dashboardState.errorCutoffs.readoutPct));
-        params.set("2q", String(dashboardState.errorCutoffs.twoqPct));
-        params.set("t1", String(dashboardState.coherenceCutoffs.minT1));
-        params.set("t2", String(dashboardState.coherenceCutoffs.minT2));
-        params.set("n", String(dashboardState.clusterSize));
-        params.set("topo", dashboardState.topology);
-        params.set("m", dashboardState.metricMode);
-        if (dashboardState.cluster.length)
-            params.set("cl", dashboardState.cluster.join(","));
-        const qs = `?${params.toString()}`;
+        const qs = serializeUrlQuery(dashboardState);
         const timer = setTimeout(() => {
             try {
                 // eslint-disable-next-line svelte/no-navigation-without-resolve -- query-string-only update of the current route; resolve() produces pathnames and cannot carry a query
@@ -191,12 +133,6 @@
         );
     }
 
-    function stepSnapshot(dir: number) {
-        const next = dashboardState.timeIdx + dir;
-        if (next < 0 || next > dashboardState.timeCount - 1) return;
-        dashboardState.setSnapshotIndex(next, { clearCluster: true });
-    }
-
     function onWindowKeydown(e: KeyboardEvent) {
         if (loadStatus !== "ready") return;
         if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") {
@@ -216,7 +152,13 @@
             }
             return;
         }
-        if (paletteOpen || isEditableTarget(e) || e.metaKey || e.ctrlKey || e.altKey)
+        if (
+            paletteOpen ||
+            isEditableTarget(e) ||
+            e.metaKey ||
+            e.ctrlKey ||
+            e.altKey
+        )
             return;
         const k = e.key.toLowerCase();
         if (k === "f") {
@@ -228,10 +170,10 @@
             dashboardState.cycleMetric();
         } else if (e.key === "[") {
             e.preventDefault();
-            stepSnapshot(-1);
+            dashboardState.stepSnapshot(-1);
         } else if (e.key === "]") {
             e.preventDefault();
-            stepSnapshot(1);
+            dashboardState.stepSnapshot(1);
         }
     }
 </script>
@@ -261,7 +203,8 @@
                 >
                     <div
                         class="loader-fill h-full rounded-full transition-none"
-                        class:indeterminate={bytesTotal === null && bytesReceived > 0}
+                        class:indeterminate={bytesTotal === null &&
+                            bytesReceived > 0}
                         style="width:{(smoothProgress.current * 100).toFixed(
                             1,
                         )}%; background:var(--accent)"
@@ -419,13 +362,9 @@
                         {#if edge}
                             <div class="tooltip">
                                 <span class="tooltip-id font-mono"
-                                    >Q{String(he.source).padStart(
-                                        3,
-                                        "0",
-                                    )} ↔ Q{String(he.target).padStart(
-                                        3,
-                                        "0",
-                                    )}</span
+                                    >Q{String(he.source).padStart(3, "0")} ↔ Q{String(
+                                        he.target,
+                                    ).padStart(3, "0")}</span
                                 >
                                 <div class="tooltip-divider"></div>
                                 <div class="tooltip-row">
@@ -578,12 +517,17 @@
         width: 14rem;
     }
     @keyframes indeterminate-slide {
-        0% { transform: translateX(-100%); }
-        100% { transform: translateX(calc(100% / 0.3)); }
+        0% {
+            transform: translateX(-100%);
+        }
+        100% {
+            transform: translateX(calc(100% / 0.3));
+        }
     }
     .loader-fill.indeterminate {
         width: 30% !important;
-        animation: indeterminate-slide 1.4s var(--ease-in-out, ease-in-out) infinite;
+        animation: indeterminate-slide 1.4s var(--ease-in-out, ease-in-out)
+            infinite;
     }
     .loader-track {
         transform-origin: center;

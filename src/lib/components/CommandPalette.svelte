@@ -22,12 +22,6 @@
         dashboardState.cluster.length > 0 || dashboardState.findFailed,
     );
 
-    function stepSnapshot(dir: number) {
-        const next = dashboardState.timeIdx + dir;
-        if (next < 0 || next > dashboardState.timeCount - 1) return;
-        dashboardState.setSnapshotIndex(next, { clearCluster: true });
-    }
-
     let commands = $derived.by(() => {
         const cmds: Cmd[] = [];
 
@@ -104,14 +98,14 @@
                     label: "Previous snapshot",
                     hint: "[",
                     keywords: ["timeline", "date"],
-                    run: () => stepSnapshot(-1),
+                    run: () => dashboardState.stepSnapshot(-1),
                 },
                 {
                     id: "snapshot-next",
                     label: "Next snapshot",
                     hint: "]",
                     keywords: ["timeline", "date"],
-                    run: () => stepSnapshot(1),
+                    run: () => dashboardState.stepSnapshot(1),
                 },
                 {
                     id: "snapshot-latest",
