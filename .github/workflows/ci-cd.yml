@@ -43,6 +43,9 @@ jobs:
     - name: Run linter
       run: npm run lint
 
+    - name: Run unit tests
+      run: npm test
+
   build-and-push:
     needs: test
     runs-on: ubuntu-latest
