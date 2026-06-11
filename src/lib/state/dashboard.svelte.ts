@@ -23,15 +23,22 @@ type SnapshotIndexOptions = {
     pause?: boolean;
 };
 
+const DEFAULT_DEVICE = QPU_DEVICES[0];
+const DEFAULT_METRIC_MODE: MetricMode = 'readout';
+const DEFAULT_CLUSTER_SIZE = 12;
+const DEFAULT_TOPOLOGY: Topology = 'compact';
+const DEFAULT_ERROR_CUTOFFS = { readoutPct: 12, twoqPct: 4 };
+const DEFAULT_COHERENCE_CUTOFFS = { minT1: 100, minT2: 50 };
+
 export class DashboardState {
     devices = $state<string[]>(QPU_DEVICES);
-    device = $state(QPU_DEVICES[0]);
+    device = $state(DEFAULT_DEVICE);
     timeIdx = $state(0);
-    metricMode = $state<MetricMode>('readout');
-    clusterSize = $state(12);
-    topology = $state<Topology>('compact');
-    errorCutoffs = $state({ readoutPct: 12, twoqPct: 4 });
-    coherenceCutoffs = $state({ minT1: 100, minT2: 50 });
+    metricMode = $state<MetricMode>(DEFAULT_METRIC_MODE);
+    clusterSize = $state(DEFAULT_CLUSTER_SIZE);
+    topology = $state<Topology>(DEFAULT_TOPOLOGY);
+    errorCutoffs = $state({ ...DEFAULT_ERROR_CUTOFFS });
+    coherenceCutoffs = $state({ ...DEFAULT_COHERENCE_CUTOFFS });
 
     cluster = $state<number[]>([]);
     clusterRequested = $state(0);
@@ -157,6 +164,24 @@ export class DashboardState {
         this.nearestCluster = [];
         this.relaxSuggestions = null;
         this.selectedId = null;
+    }
+
+    resetInputs() {
+        this.pauseTimeline();
+        this.device = this.devices.includes(DEFAULT_DEVICE)
+            ? DEFAULT_DEVICE
+            : (this.devices[0] ?? this.device);
+        this.metricMode = DEFAULT_METRIC_MODE;
+        this.clusterSize = DEFAULT_CLUSTER_SIZE;
+        this.topology = DEFAULT_TOPOLOGY;
+        this.errorCutoffs = { ...DEFAULT_ERROR_CUTOFFS };
+        this.coherenceCutoffs = { ...DEFAULT_COHERENCE_CUTOFFS };
+        const list = this.snapshotsByDevice[this.device] || [];
+        this.timeIdx = list.length ? list.length - 1 : 0;
+        this.hoveredId = null;
+        this.hoveredEdge = null;
+        this.clearCluster();
+        this.ensureTimeIdx();
     }
 
     setSnapshotIndex(idx: number, options: SnapshotIndexOptions = {}) {

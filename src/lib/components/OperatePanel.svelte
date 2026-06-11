@@ -102,6 +102,10 @@
         }
         dashboardState.playTimeline();
     }
+
+    function resetInputs() {
+        dashboardState.resetInputs();
+    }
 </script>
 
 <aside class="plate-operate" class:mob-open={mobileOpen}>
@@ -120,6 +124,27 @@
                 <span class="step">1</span>
                 <span class="eyebrow">Device</span>
             </div>
+            <button
+                type="button"
+                class="reset-defaults"
+                onclick={resetInputs}
+                title="Reset filters, cluster, and inputs to defaults"
+                aria-label="Reset filters, cluster, and inputs to defaults"
+            >
+                <svg
+                    viewBox="0 0 16 16"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="1.7"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    aria-hidden="true"
+                >
+                    <path d="M4.6 5.1A4.8 4.8 0 1 1 3.3 8.4" />
+                    <path d="M4.7 2.4v2.8H2" />
+                </svg>
+                <span>Reset</span>
+            </button>
         </div>
         <div class="dd full">
             <select
@@ -395,6 +420,41 @@
     .date-val {
         font-size: 12px;
         color: var(--text-2);
+    }
+
+    .reset-defaults {
+        height: 24px;
+        min-width: 0;
+        border: none;
+        border-radius: 5px;
+        background: transparent;
+        color: var(--text-3);
+        font-family: var(--font-sans);
+        font-size: 10.5px;
+        font-weight: 500;
+        cursor: pointer;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 4px;
+        padding: 0 4px;
+        white-space: nowrap;
+        transition:
+            color var(--dur-fast),
+            background var(--dur-fast),
+            transform var(--dur-fast);
+    }
+    .reset-defaults svg {
+        width: 12px;
+        height: 12px;
+        flex: 0 0 auto;
+    }
+    .reset-defaults:hover {
+        color: var(--text-2);
+        background: color-mix(in oklch, var(--surface) 72%, transparent);
+    }
+    .reset-defaults:active {
+        transform: translateY(1px);
     }
 
     .op-device {

@@ -10,7 +10,23 @@
     let activeIdx = $state(0);
     let inputEl = $state<HTMLInputElement | null>(null);
 
-    type Cmd = { id: string; label: string; hint?: string; run: () => void };
+    type Cmd = {
+        id: string;
+        label: string;
+        hint?: string;
+        keywords?: string[];
+        run: () => void;
+    };
+
+    let hasClusterResult = $derived(
+        dashboardState.cluster.length > 0 || dashboardState.findFailed,
+    );
+
+    function stepSnapshot(dir: number) {
+        const next = dashboardState.timeIdx + dir;
+        if (next < 0 || next > dashboardState.timeCount - 1) return;
+        dashboardState.setSnapshotIndex(next, { clearCluster: true });
+    }
 
     let commands = $derived.by(() => {
         const cmds: Cmd[] = [];
@@ -35,34 +51,96 @@
                 id: "find",
                 label: "Find best cluster",
                 hint: "F",
-                run: () => dashboardState.runFindCluster(),
+                keywords: ["build", "cluster", "search"],
+                run: () => {
+                    if (dashboardState.totalConnections > 0) {
+                        dashboardState.runFindCluster();
+                    }
+                },
             },
             {
-                id: "clear",
-                label: "Clear cluster",
-                run: () => dashboardState.clearCluster(),
+                id: "reset",
+                label: "Reset filters and inputs",
+                hint: "defaults",
+                keywords: ["clear", "defaults", "filters", "cluster"],
+                run: () => dashboardState.resetInputs(),
             },
             {
                 id: "theme",
                 label: themeState.dark
                     ? "Switch to light mode"
                     : "Switch to dark mode",
+                keywords: ["appearance"],
                 run: () => themeState.toggle(),
             },
         );
+        if (hasClusterResult) {
+            cmds.splice(2, 0, {
+                id: "clear-cluster",
+                label: "Clear cluster result",
+                keywords: ["remove selection"],
+                run: () => dashboardState.clearCluster(),
+            });
+        }
+        if (dashboardState.timeCount > 1) {
+            cmds.push(
+                {
+                    id: "timeline-toggle",
+                    label: dashboardState.isPlaying
+                        ? "Pause snapshot playback"
+                        : "Play snapshot timeline",
+                    hint: dashboardState.isPlaying ? "pause" : "play",
+                    keywords: ["timeline", "snapshots"],
+                    run: () => {
+                        if (dashboardState.isPlaying) {
+                            dashboardState.pauseTimeline();
+                            return;
+                        }
+                        dashboardState.playTimeline();
+                    },
+                },
+                {
+                    id: "snapshot-prev",
+                    label: "Previous snapshot",
+                    hint: "[",
+                    keywords: ["timeline", "date"],
+                    run: () => stepSnapshot(-1),
+                },
+                {
+                    id: "snapshot-next",
+                    label: "Next snapshot",
+                    hint: "]",
+                    keywords: ["timeline", "date"],
+                    run: () => stepSnapshot(1),
+                },
+                {
+                    id: "snapshot-latest",
+                    label: "Jump to latest snapshot",
+                    keywords: ["timeline", "date"],
+                    run: () =>
+                        dashboardState.setSnapshotIndex(dashboardState.timeCount - 1, {
+                            clearCluster: true,
+                        }),
+                },
+            );
+        }
         for (const opt of METRIC_OPTIONS) {
             cmds.push({
                 id: `metric-${opt.value}`,
-                label: `Colour by ${opt.label}`,
-                hint: "metric",
+                label: `View metric: ${opt.label}`,
+                hint: opt.value === dashboardState.metricMode ? "active" : "metric",
+                keywords: ["color", "colour", "metric"],
                 run: () => (dashboardState.metricMode = opt.value),
             });
         }
         for (const t of TOPOLOGIES) {
             cmds.push({
                 id: `topo-${t.value}`,
-                label: `Topology: ${t.label}`,
+                label: `Set topology: ${t.label}`,
+                hint: t.value === dashboardState.topology ? "active" : undefined,
+                keywords: ["shape", "cluster"],
                 run: () => {
+                    dashboardState.pauseTimeline();
                     dashboardState.topology = t.value;
                     dashboardState.clearCluster();
                 },
@@ -71,7 +149,9 @@
         for (const d of dashboardState.devices) {
             cmds.push({
                 id: `dev-${d}`,
-                label: `Device: ${d}`,
+                label: `Switch device: ${d}`,
+                hint: d === dashboardState.device ? "active" : undefined,
+                keywords: ["backend", "qpu"],
                 run: () => dashboardState.setDevice(d),
             });
         }
@@ -81,9 +161,19 @@
     let filtered = $derived.by(() => {
         const q = query.trim().toLowerCase();
         if (!q) return commands;
-        return commands.filter(
-            (c) => c.id.startsWith("qubit-") || c.label.toLowerCase().includes(q),
-        );
+        return commands.filter((c) => {
+            const haystack = [c.id, c.label, c.hint, ...(c.keywords ?? [])]
+                .filter(Boolean)
+                .join(" ")
+                .toLowerCase();
+            return c.id.startsWith("qubit-") || haystack.includes(q);
+        });
+    });
+
+    $effect(() => {
+        if (activeIdx > filtered.length - 1) {
+            activeIdx = Math.max(0, filtered.length - 1);
+        }
     });
 
     $effect(() => {
@@ -110,10 +200,12 @@
             close();
         } else if (e.key === "ArrowDown") {
             e.preventDefault();
-            activeIdx = Math.min(activeIdx + 1, filtered.length - 1);
+            activeIdx = filtered.length
+                ? Math.min(activeIdx + 1, filtered.length - 1)
+                : 0;
         } else if (e.key === "ArrowUp") {
             e.preventDefault();
-            activeIdx = Math.max(activeIdx - 1, 0);
+            activeIdx = filtered.length ? Math.max(activeIdx - 1, 0) : 0;
         } else if (e.key === "Enter") {
             e.preventDefault();
             run(filtered[activeIdx]);
@@ -170,7 +262,7 @@
             </ul>
             <div class="cp-foot">
                 <span><b>↑↓</b> navigate · <b>⏎</b> run · <b>esc</b> close</span>
-                <span><b>F</b> find · <b>B</b> build · <b>M</b> metric · <b>[ ]</b> snapshot</span>
+                <span><b>F</b> find · <b>M</b> metric · <b>[ ]</b> snapshot</span>
             </div>
         </div>
     </div>
