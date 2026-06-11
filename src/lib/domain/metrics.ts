@@ -2,10 +2,13 @@ import type { UiQubit, UiEdge, MetricRanges, MetricMode } from '$lib/types';
 
 // Node metrics a user can colour the lattice by, with their display labels.
 // Single source of truth for the metric selector (Topbar) and legend.
+// 'stability' is cross-snapshot and scored via `$lib/domain/stability`, not
+// `metricScore` — consumers branch on it before calling the scorer.
 export const METRIC_OPTIONS: { value: MetricMode; label: string }[] = [
     { value: 'readout', label: 'Readout' },
     { value: 'T1', label: 'T₁' },
-    { value: 'T2', label: 'T₂' }
+    { value: 'T2', label: 'T₂' },
+    { value: 'stability', label: 'Stability' }
 ];
 
 // Min/max of each metric over the given qubits/edges, used to normalize scores.

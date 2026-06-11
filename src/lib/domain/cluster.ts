@@ -10,9 +10,11 @@ const CLUSTER_SEED_CANDIDATES = 14;
 // findCluster scoring weights. Node-metric weights blend three normalized
 // per-qubit metrics into a single quality (sum = 1). The growth blend balances
 // node quality against 2Q-edge quality when deciding which neighbour to add.
-const NODE_WEIGHTS = { readout: 0.4, T1: 0.3, T2: 0.3 };
-const W_NODE = 0.6;
-const W_EDGE = 0.4;
+// Exported so cross-snapshot analytics (stability, cluster-over-time) rank
+// qubits with the same value system as the finder.
+export const NODE_WEIGHTS = { readout: 0.4, T1: 0.3, T2: 0.3 };
+export const W_NODE = 0.6;
+export const W_EDGE = 0.4;
 // Topology nudges applied as additive bias to the gain score (range ≈ [0, 1]).
 // The overdegree penalty (0.5) must dominate a single node+edge gain (max 1.0)
 // to reliably block branching in linear mode — it is intentionally large.
@@ -54,7 +56,7 @@ export type ClusterResult = {
     allowedCount: number;
 };
 
-// Build adjacency list for a set of allowed nodes. Optionally filters edges
+// Create an adjacency list for a set of allowed nodes. Optionally filters edges
 // whose twoq_error exceeds a ceiling (used by largestComponent for error-aware routing).
 function buildAdj(
     allowed: Set<number>,
@@ -105,6 +107,29 @@ export const TOPOLOGIES: { value: Topology; label: string }[] = [
     { value: 'branched', label: 'Branched' }
 ];
 
+// Quality context used by the finder: per-node and per-edge quality in [0,1],
+// normalized over the allowed candidate pool.
+function buildQualityContext(qubits: UiQubit[], edges: UiEdge[], allowed: Set<number>) {
+    const byId = new Map(qubits.map((q) => [q.id, q]));
+    const allowedQubits = qubits.filter((q) => allowed.has(q.id));
+    const allowedEdges = edges.filter((e) => allowed.has(e.source) && allowed.has(e.target));
+    const R = computeRanges(allowedQubits, allowedEdges);
+    const nodeQuality = (id: number) => {
+        const q = byId.get(id);
+        if (!q) return 0;
+        return (
+            NODE_WEIGHTS.readout * metricScore(q, 'readout', R) +
+            NODE_WEIGHTS.T1 * metricScore(q, 'T1', R) +
+            NODE_WEIGHTS.T2 * metricScore(q, 'T2', R)
+        );
+    };
+    // Unmeasured links are neutral (0.5) rather than worst, so missing data
+    // doesn't unfairly reject an edge.
+    const edgeQuality = (e: UiEdge) =>
+        typeof e.twoq_error === 'number' && Number.isFinite(e.twoq_error) ? edgeScore(e, R) : 0.5;
+    return { allowedEdges, nodeQuality, edgeQuality };
+}
+
 export const TOPO_HINT: Record<Topology, string> = {
     compact: 'Dense, well-connected block — maximises 2-qubit gate options.',
     linear: 'A single chain — ideal for 1-D / nearest-neighbour circuits.',
@@ -126,7 +151,6 @@ export function findCluster(
     allowedIds?: Set<number>
 ): ClusterResult {
     const allowed = allowedIds || new Set(qubits.map((q) => q.id));
-    const byId = new Map(qubits.map((q) => [q.id, q]));
     const adj = buildAdj(allowed, edges);
     const deg = new Map<number, number>();
     for (const id of allowed) deg.set(id, adj.get(id)!.length);
@@ -152,24 +176,7 @@ export function findCluster(
 
     // Normalize all metrics over the allowed candidate pool so scoring adapts to
     // each snapshot, reusing the same machinery the lattice/read panels use.
-    const allowedQubits = qubits.filter((q) => allowed.has(q.id));
-    const allowedEdges = edges.filter((e) => allowed.has(e.source) && allowed.has(e.target));
-    const R = computeRanges(allowedQubits, allowedEdges);
-
-    const nodeQuality = (id: number) => {
-        const q = byId.get(id);
-        if (!q) return 0;
-        return (
-            NODE_WEIGHTS.readout * metricScore(q, 'readout', R) +
-            NODE_WEIGHTS.T1 * metricScore(q, 'T1', R) +
-            NODE_WEIGHTS.T2 * metricScore(q, 'T2', R)
-        );
-    };
-
-    // Two-qubit gate edge quality in [0,1], higher = better. Unmeasured links are neutral
-    // (0.5) rather than worst, so missing data doesn't unfairly reject an edge.
-    const edgeQuality = (e: UiEdge) =>
-        typeof e.twoq_error === 'number' && Number.isFinite(e.twoq_error) ? edgeScore(e, R) : 0.5;
+    const { allowedEdges, nodeQuality, edgeQuality } = buildQualityContext(qubits, edges, allowed);
 
     // Precompute edge quality by qubit-pair key for O(1) lookup during growth.
     const linkQ = new Map<string, number>();
@@ -197,11 +204,11 @@ export function findCluster(
             return da - db || nodeQuality(b) - nodeQuality(a);
         });
 
-    // Grow a connected cluster from a seed, repeatedly adding the frontier node
-    // with the highest marginal gain (node quality + connecting-edge quality +
-    // a soft topology nudge).
-    const grow = (seed: number): number[] => {
-        const members = new Set([seed]);
+    // Grow a connected cluster from one or more seed members, repeatedly adding
+    // the frontier node with the highest marginal gain (node quality +
+    // connecting-edge quality + a soft topology nudge).
+    const grow = (seedMembers: number[]): number[] => {
+        const members = new Set(seedMembers);
         // links from each frontier node into the current cluster
         const frontier = new Map<number, number[]>();
         const addFrontier = (id: number) => {
@@ -212,7 +219,7 @@ export function findCluster(
                 frontier.set(nb, links);
             }
         };
-        addFrontier(seed);
+        for (const m of members) addFrontier(m);
 
         while (members.size < needed && frontier.size) {
             let pick = -1;
@@ -267,7 +274,7 @@ export function findCluster(
     let best: number[] | null = null;
     let bestScore = -Infinity;
     for (const seed of sortedIds.slice(0, CLUSTER_SEED_CANDIDATES)) {
-        const cluster = grow(seed);
+        const cluster = grow([seed]);
         if (cluster.length !== needed) continue; // never return a short cluster
         const score = clusterScore(cluster);
         if (score > bestScore) {

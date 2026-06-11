@@ -133,6 +133,18 @@
         new Set(dashboardState.filteredEdges.map((e) => edgeKey(e.source, e.target))),
     );
 
+    // 1-hop neighbourhood of the hovered qubit, for edge/node emphasis.
+    let hoverNbrs = $derived.by(() => {
+        const h = dashboardState.hoveredId;
+        const s = new SvelteSet<number>();
+        if (h === null) return s;
+        for (const e of dashboardState.filteredEdges) {
+            if (e.source === h) s.add(e.target);
+            else if (e.target === h) s.add(e.source);
+        }
+        return s;
+    });
+
     let dimNodeOpacity = $derived.by(() => {
         if (!clSet.size) return 1;
         return revealPhase === "early" ? OUT_NODE_EARLY : OUT_NODE;
@@ -224,7 +236,6 @@
             pingRings = [];
             return;
         }
-
         revealActive = new Set();
         pingRings = [];
         revealPhase = "early";
@@ -279,16 +290,22 @@
 
     let targetScores = $derived.by(() => {
         const entries: [number, number][] = [];
+        const stability =
+            dashboardState.metricMode === "stability"
+                ? dashboardState.stabilityScores
+                : null;
         for (const pos of positions) {
             const q = dashboardState.snap.qubits[pos.id];
             if (q)
                 entries.push([
                     pos.id,
-                    metricScore(
-                        q,
-                        dashboardState.metricMode,
-                        dashboardState.ranges,
-                    ),
+                    stability
+                        ? (stability.get(pos.id) ?? 0.5)
+                        : metricScore(
+                              q,
+                              dashboardState.metricMode,
+                              dashboardState.ranges,
+                          ),
                 ]);
         }
         return new Map(entries);
@@ -307,6 +324,12 @@
     });
 
     let displayScores = $derived(scoreTween.current);
+
+    // Node click: inspect the qubit.
+    function activate(id: number) {
+        dashboardState.selectedId =
+            dashboardState.selectedId === id ? null : id;
+    }
 </script>
 
 {#if positions.length}
@@ -375,6 +398,10 @@
                     {@const isActive =
                         revealActive.has(e.source) &&
                         revealActive.has(e.target)}
+                    {@const touchesHover =
+                        dashboardState.hoveredId !== null &&
+                        (e.source === dashboardState.hoveredId ||
+                            e.target === dashboardState.hoveredId)}
                     <line
                         class="entry-edge edge-live"
                         x1={a.x}
@@ -382,15 +409,42 @@
                         x2={b.x}
                         y2={b.y}
                         stroke={LIVE_EDGE_STROKE}
-                        style:stroke-width={inCl ? (isActive ? qw + 1.0 : qw + 0.4) : qw}
-                        style:stroke-opacity={inCl
+                        style:stroke-width={inCl
                             ? isActive
-                                ? IN_EDGE
-                                : baseOpacity
-                            : clSet.size > 0
-                              ? (dimEdgeOpacity ?? baseOpacity)
-                              : baseOpacity}
+                                ? qw + 1.0
+                                : qw + 0.4
+                            : touchesHover
+                              ? qw + 0.8
+                              : qw}
+                        style:stroke-opacity={touchesHover
+                            ? Math.max(baseOpacity, 0.85)
+                            : inCl
+                              ? isActive
+                                  ? IN_EDGE
+                                  : baseOpacity
+                              : clSet.size > 0
+                                ? (dimEdgeOpacity ?? baseOpacity)
+                                : baseOpacity}
                         stroke-linecap="round"
+                    />
+                    <!-- Wide invisible twin so the thin line is hoverable. -->
+                    <!-- svelte-ignore a11y_no_static_element_interactions -->
+                    <line
+                        class="edge-hit"
+                        x1={a.x}
+                        y1={a.y}
+                        x2={b.x}
+                        y2={b.y}
+                        stroke="transparent"
+                        stroke-width={9}
+                        stroke-linecap="round"
+                        pointer-events={interactive ? "stroke" : "none"}
+                        onmouseenter={() =>
+                            (dashboardState.hoveredEdge = {
+                                source: e.source,
+                                target: e.target,
+                            })}
+                        onmouseleave={() => (dashboardState.hoveredEdge = null)}
                     />
                 {/if}
             {/each}
@@ -421,6 +475,8 @@
                 {#if q && p && isAllowed}
                     {@const inCl = clSet.has(pos.id)}
                     {@const isHov = dashboardState.hoveredId === pos.id}
+                    {@const isNbr = hoverNbrs.has(pos.id)}
+                    {@const isSel = dashboardState.selectedId === pos.id}
                     {@const score =
                         displayScores.get(pos.id) ??
                         metricScore(
@@ -429,7 +485,6 @@
                             dashboardState.ranges,
                         )}
                     {@const fill = metricNodeColor(score)}
-                    {@const r = isHov ? R * 1.35 : R}
 
                     <g
                         transform={`translate(${p.x},${p.y})`}
@@ -446,18 +501,11 @@
                         onmouseleave={() => (dashboardState.hoveredId = null)}
                         onfocus={() => (dashboardState.hoveredId = pos.id)}
                         onblur={() => (dashboardState.hoveredId = null)}
-                        onclick={() =>
-                            (dashboardState.selectedId =
-                                dashboardState.selectedId === pos.id
-                                    ? null
-                                    : pos.id)}
+                        onclick={() => activate(pos.id)}
                         onkeydown={(ev) => {
                             if (ev.key === "Enter" || ev.key === " ") {
                                 ev.preventDefault();
-                                dashboardState.selectedId =
-                                    dashboardState.selectedId === pos.id
-                                        ? null
-                                        : pos.id;
+                                activate(pos.id);
                             }
                         }}
                     >
@@ -466,17 +514,29 @@
                             style="--entry-delay: {entryDelays.get(pos.id) ??
                                 0}ms"
                         >
+                            <!-- Comfortable hit target even when nodes render tiny -->
                             <circle
-                                {r}
-                                {fill}
-                                stroke={isHov
-                                    ? "var(--node-stroke-hov)"
-                                    : inCl
-                                      ? "var(--node-stroke-hov)"
-                                      : "var(--node-stroke)"}
-                                stroke-width={isHov ? 1 : inCl ? 1 : 0.75}
-                                filter={inCl ? "url(#f-glow)" : undefined}
+                                class="hit"
+                                r={Math.max(R * 1.8, 11)}
+                                fill="transparent"
                             />
+                            <g class="node-scale" class:hov={isHov}>
+                                <circle
+                                    r={R}
+                                    {fill}
+                                    stroke={isHov || isNbr || inCl
+                                        ? "var(--node-stroke-hov)"
+                                        : "var(--node-stroke)"}
+                                    stroke-width={isHov || isNbr || inCl
+                                        ? 1
+                                        : 0.75}
+                                    filter={inCl ? "url(#f-glow)" : undefined}
+                                />
+                            </g>
+                            {#if isSel}
+                                <circle class="sel-ring" r={R * 1.7} />
+                            {/if}
+                            <circle class="focus-ring" r={R * 1.7} />
                         </g>
                     </g>
                 {/if}
@@ -515,11 +575,46 @@
             stroke-opacity var(--dur-base) var(--ease-out),
             stroke-width var(--dur-base) var(--ease-out);
     }
+    /* Hover growth animates instead of snapping */
+    .node-scale {
+        transform-box: fill-box;
+        transform-origin: center;
+        transition: transform var(--dur-fast) var(--ease-out);
+    }
+    .node-scale.hov {
+        transform: scale(1.35);
+    }
+
+    /* Selection + keyboard-focus rings (the global outline rule doesn't
+       render usefully on SVG groups, so the ring carries focus instead) */
+    .qnode:focus-visible {
+        outline: none;
+    }
+    .sel-ring,
+    .focus-ring {
+        fill: none;
+        stroke: var(--accent);
+        pointer-events: none;
+        transform-box: fill-box;
+        transform-origin: center;
+    }
+    .sel-ring {
+        stroke-width: 1.5;
+        animation: ring-in var(--dur-fast) var(--ease-out) both;
+    }
+    .focus-ring {
+        stroke-width: 1.2;
+        stroke-dasharray: 3 2;
+        opacity: 0;
+    }
+    .qnode:focus-visible .focus-ring {
+        opacity: 1;
+    }
 
     .entry-animating .entry-node {
         transform-box: fill-box;
         transform-origin: center;
-        animation: node-pop var(--dur-entry) var(--ease-overshoot) both;
+        animation: node-pop var(--dur-entry) var(--ease-out) both;
         animation-delay: var(--entry-delay, 0ms);
     }
     .entry-animating .entry-node-dead {

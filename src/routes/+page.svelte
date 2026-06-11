@@ -1,16 +1,21 @@
 <script lang="ts">
     import { onMount } from "svelte";
     import { Tween } from "svelte/motion";
+    import { SvelteURLSearchParams } from "svelte/reactivity";
+    import { replaceState } from "$app/navigation";
+    import { resolve } from "$app/paths";
     import { DUR, ease } from "$lib/viz/motion";
     import Topbar from "$lib/components/Topbar.svelte";
     import OperatePanel from "$lib/components/OperatePanel.svelte";
     import ReadPanel from "$lib/components/ReadPanel.svelte";
     import Lattice from "$lib/components/Lattice.svelte";
+    import CommandPalette from "$lib/components/CommandPalette.svelte";
     import { dashboardState } from "$lib/state/dashboard.svelte";
     import { BASE_POS } from "$lib/domain/lattice";
-    import type { Positions } from "$lib/types";
+    import type { MetricMode, Positions } from "$lib/types";
+    import type { Topology } from "$lib/domain/cluster";
     import { loadData } from "$lib/data/calibration";
-    import { microseconds, percent } from "$lib/viz/format";
+    import { microseconds, percent, exponential } from "$lib/viz/format";
 
     let containerWidth = $state(900);
     let containerHeight = $state(540);
@@ -26,6 +31,8 @@
     let activeSheet = $state<"controls" | "results" | null>(null);
     let isMobile = $state(false);
     let mediaQuery: MediaQueryList | null = null;
+    let paletteOpen = $state(false);
+    let loaderWidth = $state(1280);
 
     let hasResults = $derived(
         dashboardState.cluster.length > 0 || dashboardState.findFailed,
@@ -57,6 +64,7 @@
             });
             positionsByDevice = positions;
             dashboardState.applyDataset(dataset);
+            applyUrlState();
             await smoothProgress.set(1);
             loadStatus = "transitioning";
             entryAnimating = true;
@@ -93,13 +101,154 @@
         mediaQuery.addEventListener("change", handle);
         return () => mediaQuery?.removeEventListener("change", handle);
     });
+
+    // ── Shareable URL state ────────────────────────────────────────────
+    const TOPOLOGY_VALUES: Topology[] = ["compact", "linear", "branched"];
+    const METRIC_VALUES: MetricMode[] = ["readout", "T1", "T2", "stability"];
+
+    function applyUrlState() {
+        const params = new URLSearchParams(window.location.search);
+        if ([...params.keys()].length === 0) return;
+        const num = (key: string) => {
+            const v = params.get(key);
+            if (v == null) return null;
+            const n = Number(v);
+            return Number.isFinite(n) ? n : null;
+        };
+        const clamp = (v: number, lo: number, hi: number) =>
+            Math.min(hi, Math.max(lo, v));
+
+        const dev = params.get("dev");
+        if (dev && dashboardState.devices.includes(dev))
+            dashboardState.setDevice(dev);
+        const ro = num("ro");
+        if (ro != null) dashboardState.errorCutoffs.readoutPct = clamp(ro, 0, 100);
+        const tq = num("2q");
+        if (tq != null) dashboardState.errorCutoffs.twoqPct = clamp(tq, 0, 100);
+        const t1 = num("t1");
+        if (t1 != null) dashboardState.coherenceCutoffs.minT1 = clamp(t1, 0, 500);
+        const t2 = num("t2");
+        if (t2 != null) dashboardState.coherenceCutoffs.minT2 = clamp(t2, 0, 500);
+        const n = num("n");
+        if (n != null) dashboardState.clusterSize = clamp(Math.round(n), 2, 50);
+        const topo = params.get("topo") as Topology | null;
+        if (topo && TOPOLOGY_VALUES.includes(topo)) dashboardState.topology = topo;
+        const m = params.get("m") as MetricMode | null;
+        if (m && METRIC_VALUES.includes(m)) dashboardState.metricMode = m;
+        const t = num("t");
+        if (t != null) dashboardState.jumpToSnapshot(Math.round(t));
+        const cl = params.get("cl");
+        if (cl) {
+            const ids = cl
+                .split(",")
+                .map(Number)
+                .filter((x) => Number.isInteger(x) && x >= 0);
+            const valid = [...new Set(ids)].filter((id) =>
+                dashboardState.allowedQubitIds.has(id),
+            );
+            if (valid.length >= 2) {
+                dashboardState.cluster = valid;
+                dashboardState.clusterRequested = valid.length;
+                dashboardState.findFailed = false;
+            }
+        }
+    }
+
+    $effect(() => {
+        if (loadStatus !== "ready") return;
+        const params = new SvelteURLSearchParams();
+        params.set("dev", dashboardState.device);
+        params.set("t", String(dashboardState.timeIdx));
+        params.set("ro", String(dashboardState.errorCutoffs.readoutPct));
+        params.set("2q", String(dashboardState.errorCutoffs.twoqPct));
+        params.set("t1", String(dashboardState.coherenceCutoffs.minT1));
+        params.set("t2", String(dashboardState.coherenceCutoffs.minT2));
+        params.set("n", String(dashboardState.clusterSize));
+        params.set("topo", dashboardState.topology);
+        params.set("m", dashboardState.metricMode);
+        if (dashboardState.cluster.length)
+            params.set("cl", dashboardState.cluster.join(","));
+        const qs = `?${params.toString()}`;
+        const timer = setTimeout(() => {
+            try {
+                // eslint-disable-next-line svelte/no-navigation-without-resolve -- query-string-only update of the current route; resolve() produces pathnames and cannot carry a query
+                replaceState(resolve("/") + qs, {});
+            } catch {
+                history.replaceState(history.state, "", qs);
+            }
+        }, 250);
+        return () => clearTimeout(timer);
+    });
+
+    // ── Keyboard layer: Esc to back out, single-key accelerators ──────
+    function isEditableTarget(e: KeyboardEvent) {
+        const t = e.target as HTMLElement | null;
+        if (!t) return false;
+        return (
+            t.tagName === "INPUT" ||
+            t.tagName === "SELECT" ||
+            t.tagName === "TEXTAREA" ||
+            t.isContentEditable
+        );
+    }
+
+    function stepSnapshot(dir: number) {
+        // Mirrors range input: changing snapshot clears the cluster.
+        const next = dashboardState.timeIdx + dir;
+        if (next < 0 || next > dashboardState.timeCount - 1) return;
+        dashboardState.isPlaying = false;
+        dashboardState.timeIdx = next;
+        dashboardState.clearCluster();
+    }
+
+    function onWindowKeydown(e: KeyboardEvent) {
+        if (loadStatus !== "ready") return;
+        if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") {
+            if (!isMobile) {
+                e.preventDefault();
+                paletteOpen = !paletteOpen;
+            }
+            return;
+        }
+        if (e.key === "Escape") {
+            if (paletteOpen) {
+                paletteOpen = false;
+            } else if (activeSheet !== null) {
+                closeSheet();
+            } else if (dashboardState.selectedId !== null) {
+                dashboardState.selectedId = null;
+            }
+            return;
+        }
+        if (paletteOpen || isEditableTarget(e) || e.metaKey || e.ctrlKey || e.altKey)
+            return;
+        const k = e.key.toLowerCase();
+        if (k === "f") {
+            e.preventDefault();
+            if (dashboardState.totalConnections > 0)
+                dashboardState.runFindCluster();
+        } else if (k === "m") {
+            e.preventDefault();
+            dashboardState.cycleMetric();
+        } else if (e.key === "[") {
+            e.preventDefault();
+            stepSnapshot(-1);
+        } else if (e.key === "]") {
+            e.preventDefault();
+            stepSnapshot(1);
+        }
+    }
 </script>
+
+<svelte:window onkeydown={onWindowKeydown} />
 
 <!-- ─── Loading overlay ──────────────────────────────────────────────── -->
 {#if loadStatus === "loading" || loadStatus === "transitioning"}
     <div
-        class="loader-overlay fixed inset-0 z-100 flex flex-col items-center justify-center gap-6 bg-(--bg)"
+        class="loader-overlay fixed inset-0 z-(--z-loader) flex flex-col items-center justify-center gap-6 bg-(--bg)"
         class:transitioning={loadStatus === "transitioning"}
+        bind:clientWidth={loaderWidth}
+        style="--bar-scale: {(loaderWidth / 224).toFixed(3)}"
     >
         <div class="loader-content flex flex-col items-center gap-5">
             <div class="loader-label flex flex-col items-center gap-1.5 mb-1">
@@ -150,7 +299,7 @@
 <!-- ─── Error state ──────────────────────────────────────────────────── -->
 {#if loadStatus === "error"}
     <div
-        class="fixed inset-0 z-100 flex flex-col items-center justify-center bg-(--bg)"
+        class="fade-in fixed inset-0 z-(--z-loader) flex flex-col items-center justify-center bg-(--bg)"
     >
         <div
             class="w-10 h-10 mb-5 rounded-full flex items-center justify-center"
@@ -191,7 +340,7 @@
 {:else if loadStatus === "transitioning" || loadStatus === "ready"}
     <!-- ─── Plate shell ───────────────────────────────────────────────────── -->
     <div class="plate plate-enter">
-        <Topbar />
+        <Topbar onOpenPalette={() => (paletteOpen = true)} />
 
         <div class="plate-body">
             <OperatePanel
@@ -219,6 +368,13 @@
                         height={containerHeight}
                         {entryAnimating}
                     />
+
+                    <!-- Current snapshot date while the timeline plays -->
+                    {#if dashboardState.isPlaying}
+                        <div class="play-chip font-mono" aria-live="polite">
+                            {dashboardState.snap.date}
+                        </div>
+                    {/if}
 
                     <!-- Hover tooltip (bottom-center of canvas) -->
                     {#if dashboardState.hoveredId !== null && dashboardState.snap.qubits[dashboardState.hoveredId]}
@@ -266,6 +422,33 @@
                                 >
                             </div>
                         </div>
+                    {:else if dashboardState.hoveredEdge}
+                        {@const he = dashboardState.hoveredEdge}
+                        {@const edge = dashboardState.filteredEdges.find(
+                            (e) =>
+                                e.source === he.source &&
+                                e.target === he.target,
+                        )}
+                        {#if edge}
+                            <div class="tooltip">
+                                <span class="tooltip-id font-mono"
+                                    >Q{String(he.source).padStart(
+                                        3,
+                                        "0",
+                                    )} ↔ Q{String(he.target).padStart(
+                                        3,
+                                        "0",
+                                    )}</span
+                                >
+                                <div class="tooltip-divider"></div>
+                                <div class="tooltip-row">
+                                    <span class="tooltip-lbl">2Q gate err</span>
+                                    <span class="tooltip-val font-mono"
+                                        >{exponential(edge.twoq_error, 2)}</span
+                                    >
+                                </div>
+                            </div>
+                        {/if}
                     {/if}
                 </div>
             </div>
@@ -320,17 +503,17 @@
                     <span class="mob-badge" class:show={hasResults}></span>
                 </button>
             </nav>
+            <!-- Pointer-only dismiss layer; Esc handles keyboard dismissal -->
             <div
                 class="mob-backdrop"
                 class:show={activeSheet !== null}
                 onclick={closeSheet}
-                onkeydown={(e) => { if (e.key === 'Enter' || e.key === ' ') closeSheet(); }}
-                role="button"
-                tabindex="-1"
-                aria-label="Close panel"
+                aria-hidden="true"
             ></div>
         </div>
     </div>
+
+    <CommandPalette bind:open={paletteOpen} />
 {/if}
 
 <style>
@@ -339,7 +522,35 @@
         animation: plate-fade-in var(--dur-base) var(--ease-standard) both;
     }
 
+    /* ─── Playback date chip ─────────────────────────────────────────── */
+    .play-chip {
+        position: absolute;
+        top: 16px;
+        left: 50%;
+        transform: translateX(-50%);
+        z-index: var(--z-stage-ui);
+        background: var(--surface);
+        border: 1px solid var(--border-mid);
+        border-radius: 99px;
+        padding: 4px 13px;
+        font-size: 11.5px;
+        color: var(--text-2);
+        box-shadow: var(--shadow-panel);
+        pointer-events: none;
+        animation: fadeIn var(--dur-fast) var(--ease-out) both;
+    }
+
     /* ─── Hover tooltip ──────────────────────────────────────────────── */
+    @keyframes tip-in {
+        from {
+            opacity: 0;
+            transform: translate(-50%, 4px);
+        }
+        to {
+            opacity: 1;
+            transform: translate(-50%, 0);
+        }
+    }
     .tooltip {
         position: absolute;
         bottom: 18px;
@@ -355,7 +566,8 @@
         pointer-events: none;
         white-space: nowrap;
         box-shadow: var(--shadow-pop);
-        z-index: 50;
+        z-index: var(--z-tooltip);
+        animation: tip-in var(--dur-fast) var(--ease-out) both;
     }
 
     .tooltip-id {
@@ -401,10 +613,13 @@
        reduced-motion handled by the global rule there) ──────────────── */
     .loader-bar-wrap {
         width: 14rem;
-        transition: width var(--dur-base) var(--ease-in-out);
     }
     .loader-track {
+        /* full-bleed stretch via transform (no layout work); --bar-scale is
+           overlay-width / 14rem, computed inline on the overlay */
+        transform-origin: center;
         transition:
+            transform var(--dur-base) var(--ease-in-out),
             background-color var(--dur-ui) ease-out,
             border-radius var(--dur-ui) ease-out;
     }
@@ -419,10 +634,8 @@
         opacity: 0;
         pointer-events: none;
     }
-    .loader-overlay.transitioning .loader-bar-wrap {
-        width: 100vw;
-    }
     .loader-overlay.transitioning .loader-track {
+        transform: scaleX(var(--bar-scale, 6));
         background-color: transparent;
         border-radius: 0;
         overflow: visible;

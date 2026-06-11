@@ -3,6 +3,7 @@
     import { DUR, ease, prefersReducedMotion } from "$lib/viz/motion";
     import { dashboardState } from "$lib/state/dashboard.svelte";
     import { metricNodeColor, LIVE_EDGE_STROKE } from "$lib/viz/color";
+    import Sparkline from "$lib/components/Sparkline.svelte";
     import {
         microseconds,
         percent,
@@ -34,6 +35,13 @@
                 label: "T₂ coherence · nodes",
                 lo: `${r.T2[0].toFixed(0)} μs`,
                 hi: `${r.T2[1].toFixed(0)} μs`,
+                reversed: false,
+            };
+        if (m === "stability")
+            return {
+                label: "Stability · nodes",
+                lo: "volatile",
+                hi: "stable",
                 reversed: false,
             };
         return {
@@ -86,13 +94,72 @@
     function closeDetail() {
         dashboardState.selectedId = null;
     }
+
+    // Per-metric history of the inspected qubit across the device's snapshots,
+    // for the inline sparklines. Null when there isn't enough history to draw.
+    let history = $derived.by(() => {
+        if (inspectedId === null) return null;
+        const snaps =
+            dashboardState.snapshotsByDevice[dashboardState.device] || [];
+        if (snaps.length < 2) return null;
+        const id = inspectedId;
+        const series = (sel: (q: (typeof snaps)[number]["qubits"][number]) => number | null) =>
+            snaps.map((s) => {
+                const q = s.qubits[id];
+                return q ? sel(q) : null;
+            });
+        return {
+            T1: series((q) => q.T1),
+            T2: series((q) => q.T2),
+            ro: series((q) => q.readout_error),
+        };
+    });
+
+    // Cluster-over-time strip: how often the found cluster beats the device median.
+    let timelineAbove = $derived(
+        dashboardState.clusterTimeline.filter(
+            (p) => p.cluster != null && p.cluster >= p.device,
+        ).length,
+    );
+    let onLatestSnapshot = $derived(
+        dashboardState.timeIdx >= dashboardState.timeCount - 1,
+    );
 </script>
 
 <aside class="plate-read" class:mob-open={mobileOpen}>
     <button type="button" class="sheet-handle" onclick={onClose} aria-label="Close results">
         <span class="sheet-handle-bar"></span>
     </button>
-    <!-- ── TOP: inspector priority: node detail > cluster result > empty ── -->
+
+    {#snippet metricRows(cs: NonNullable<ReturnType<typeof dashboardState.statsFor>>)}
+        <div class="cr-metrics">
+            {#each [{ l: "T₁", v: microseconds(cs.T1, 0), d: cs.deltaT1 }, { l: "T₂", v: microseconds(cs.T2, 0), d: cs.deltaT2 }, { l: "Readout err", v: percent(cs.ro, 2), d: cs.deltaRo }, { l: "2Q gate err", v: cs.twoq != null ? exponential(cs.twoq, 2) : "—", d: cs.deltaTwoq }] as row, i (row.l)}
+                <div class="cr-mrow" style="--i: {i}">
+                    <span class="cr-ml">{row.l}</span>
+                    <span class="cr-mv">{row.v}</span>
+                    {#if row.d}
+                        <span
+                            class="cr-delta"
+                            class:up={row.d.dir === "up"}
+                            class:down={row.d.dir === "down"}
+                            class:flat={row.d.dir === "flat"}
+                        >
+                            {row.d.dir === "up"
+                                ? "▲"
+                                : row.d.dir === "down"
+                                  ? "▼"
+                                  : "—"}
+                            {deltaLabel(row.d.magnitude)}
+                        </span>
+                    {:else}
+                        <span class="cr-delta flat">—</span>
+                    {/if}
+                </div>
+            {/each}
+        </div>
+    {/snippet}
+
+    <!-- ── TOP priority: node detail > failure > cluster > empty ── -->
 
     {#if inspectedQubit !== null && inspectedId !== null}
         <!-- Node detail drill-down -->
@@ -123,18 +190,42 @@
             <div>
                 <div class="pr-row">
                     <span class="pr-l">T₁</span>
+                    {#if history}
+                        <span class="spark-wrap">
+                            <Sparkline
+                                values={history.T1}
+                                currentIdx={dashboardState.timeIdx}
+                            />
+                        </span>
+                    {/if}
                     <span class="pr-v"
                         >{microseconds(inspectedQubit.T1, 1)}</span
                     >
                 </div>
                 <div class="pr-row">
                     <span class="pr-l">T₂</span>
+                    {#if history}
+                        <span class="spark-wrap">
+                            <Sparkline
+                                values={history.T2}
+                                currentIdx={dashboardState.timeIdx}
+                            />
+                        </span>
+                    {/if}
                     <span class="pr-v"
                         >{microseconds(inspectedQubit.T2, 1)}</span
                     >
                 </div>
                 <div class="pr-row">
                     <span class="pr-l">Readout error</span>
+                    {#if history}
+                        <span class="spark-wrap">
+                            <Sparkline
+                                values={history.ro}
+                                currentIdx={dashboardState.timeIdx}
+                            />
+                        </span>
+                    {/if}
                     <span class="pr-v"
                         >{percent(inspectedQubit.readout_error, 2)}</span
                     >
@@ -245,7 +336,8 @@
                 <button
                     class="cr-x"
                     onclick={() => dashboardState.clearCluster()}
-                    title="Clear"
+                    title="Clear cluster"
+                    aria-label="Clear cluster"
                 >
                     <svg
                         viewBox="0 0 16 16"
@@ -294,32 +386,59 @@
                 </div>
             {/if}
 
-            <div class="cr-metrics">
-                {#each [{ l: "T₁", v: microseconds(cs.T1, 0), d: cs.deltaT1 }, { l: "T₂", v: microseconds(cs.T2, 0), d: cs.deltaT2 }, { l: "Readout err", v: percent(cs.ro, 2), d: cs.deltaRo }, { l: "2Q gate err", v: cs.twoq != null ? exponential(cs.twoq, 2) : "—", d: cs.deltaTwoq }] as row (row.l)}
-                    <div class="cr-mrow">
-                        <span class="cr-ml">{row.l}</span>
-                        <span class="cr-mv">{row.v}</span>
-                        {#if row.d}
-                            <span
-                                class="cr-delta"
-                                class:up={row.d.dir === "up"}
-                                class:down={row.d.dir === "down"}
-                                class:flat={row.d.dir === "flat"}
-                            >
-                                {row.d.dir === "up"
-                                    ? "▲"
-                                    : row.d.dir === "down"
-                                      ? "▼"
-                                      : "—"}
-                                {deltaLabel(row.d.magnitude)}
-                            </span>
-                        {:else}
-                            <span class="cr-delta flat">—</span>
-                        {/if}
-                    </div>
-                {/each}
-            </div>
+            {@render metricRows(cs)}
             <div class="cr-vsmed">vs device median · ▲ = better</div>
+
+            {#if dashboardState.clusterTimeline.length > 1}
+                <div class="cr-time">
+                    <div class="cr-time-h">
+                        <span class="cr-mem-t">History</span>
+                        <span class="cr-mem-hint">
+                            above median in {timelineAbove} of {dashboardState
+                                .clusterTimeline.length}
+                        </span>
+                    </div>
+                    <div
+                        class="cr-bars"
+                        role="group"
+                        aria-label="Cluster quality across snapshots"
+                    >
+                        {#each dashboardState.clusterTimeline as pt, i (i)}
+                            <button
+                                class="cr-bar"
+                                class:cur={i === dashboardState.timeIdx}
+                                title={pt.date}
+                                aria-label="View this cluster on {pt.date}"
+                                onclick={() => dashboardState.jumpToSnapshot(i)}
+                            >
+                                <span
+                                    class="cr-bar-fill"
+                                    class:above={pt.cluster != null &&
+                                        pt.cluster >= pt.device}
+                                    style="height: {Math.max(
+                                        14,
+                                        (pt.cluster ?? 0) * 100,
+                                    )}%"
+                                ></span>
+                            </button>
+                        {/each}
+                    </div>
+                    {#if !onLatestSnapshot}
+                        <div class="cr-time-note">
+                            viewing {dashboardState.snap.date} ·
+                            <button
+                                class="cr-time-latest"
+                                onclick={() =>
+                                    dashboardState.jumpToSnapshot(
+                                        dashboardState.timeCount - 1,
+                                    )}
+                            >
+                                back to latest
+                            </button>
+                        </div>
+                    {/if}
+                </div>
+            {/if}
 
             <div class="cr-mem">
                 <div class="cr-mem-h">
@@ -352,8 +471,9 @@
         <div>
             <div class="eyebrow mb">Inspector</div>
             <div class="insp-empty">
-                Click any qubit in the figure to read its full calibration
-                record — or <b>find a cluster</b> to evaluate a candidate region.
+                Hover a qubit for a quick read, click it for the full
+                calibration record. Set the filters on the left and
+                <b>find a cluster</b>.
             </div>
         </div>
     {/if}
@@ -397,21 +517,23 @@
         <!-- Color scale legend -->
         {#if dashboardState.filteredQubits.length > 0}
             <div class="leg-inline">
-                <div class="lg-pair">
-                    <div class="lg-label">{nodeLegend.label}</div>
-                    <div
-                        class="lg-bar"
-                        style="background: linear-gradient(to right, {nodeLegend.reversed
-                            ? NODE_HI
-                            : NODE_LO}, {nodeLegend.reversed
-                            ? NODE_LO
-                            : NODE_HI})"
-                    ></div>
-                    <div class="lg-ends">
-                        <span>{nodeLegend.lo}</span>
-                        <span>{nodeLegend.hi}</span>
+                {#key dashboardState.metricMode}
+                    <div class="lg-pair lg-fade">
+                        <div class="lg-label">{nodeLegend.label}</div>
+                        <div
+                            class="lg-bar"
+                            style="background: linear-gradient(to right, {nodeLegend.reversed
+                                ? NODE_HI
+                                : NODE_LO}, {nodeLegend.reversed
+                                ? NODE_LO
+                                : NODE_HI})"
+                        ></div>
+                        <div class="lg-ends">
+                            <span>{nodeLegend.lo}</span>
+                            <span>{nodeLegend.hi}</span>
+                        </div>
                     </div>
-                </div>
+                {/key}
                 <div class="lg-pair">
                     <div class="lg-label">2Q gate error · edges</div>
                     <!-- Edge quality is drawn as stroke width on the lattice
@@ -474,6 +596,13 @@
         text-transform: uppercase;
         margin: 15px 0 4px;
     }
+    .spark-wrap {
+        margin-left: auto;
+        margin-right: 2px;
+        display: inline-flex;
+        align-items: center;
+        align-self: center;
+    }
 
     .read-foot {
         margin-top: auto;
@@ -516,6 +645,9 @@
     .leg-inline .lg-pair:last-child {
         margin-bottom: 0;
     }
+    .lg-fade {
+        animation: fadeIn var(--dur-fast) var(--ease-out) both;
+    }
 
     /* ═══ Cluster result card ═══ */
     .cr {
@@ -548,6 +680,7 @@
         background: var(--accent);
         box-shadow: 0 0 0 3px
             color-mix(in oklch, var(--accent) 22%, transparent);
+        animation: dot-pulse 0.9s var(--ease-standard) both;
     }
     .cr-x {
         width: 22px;
@@ -614,6 +747,9 @@
         gap: 10px;
         padding: 8px 0;
         border-top: 1px solid var(--border);
+        /* rows land with a short cadence after the card itself fades in */
+        animation: fadeIn var(--dur-base) var(--ease-out) both;
+        animation-delay: calc(var(--i, 0) * 40ms);
     }
     .cr-mrow:first-child {
         border-top: none;
@@ -657,6 +793,77 @@
         color: var(--text-3);
         text-align: right;
         padding: 6px 16px 0;
+    }
+
+    /* ═══ Cluster-over-time strip ═══ */
+    .cr-time {
+        padding: 11px 16px 0;
+        margin-top: 10px;
+        border-top: 1px solid var(--border);
+    }
+    .cr-time-h {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        margin-bottom: 8px;
+    }
+    .cr-bars {
+        display: flex;
+        align-items: flex-end;
+        gap: 2px;
+        height: 28px;
+    }
+    .cr-bar {
+        flex: 1;
+        height: 100%;
+        display: flex;
+        align-items: flex-end;
+        background: none;
+        border: none;
+        padding: 0;
+        cursor: pointer;
+        border-radius: 2px;
+        transition: background var(--dur-fast);
+    }
+    .cr-bar:hover {
+        background: var(--read-bg);
+    }
+    .cr-bar-fill {
+        width: 100%;
+        border-radius: 1.5px;
+        background: var(--border-mid);
+        transition:
+            height var(--dur-fast) var(--ease-out),
+            background var(--dur-fast);
+    }
+    .cr-bar-fill.above {
+        background: color-mix(in oklch, var(--accent) 55%, transparent);
+    }
+    .cr-bar.cur .cr-bar-fill {
+        background: var(--accent);
+    }
+    .cr-time-note {
+        font-size: 11px;
+        color: var(--text-3);
+        padding: 7px 0 2px;
+        font-family: var(--font-mono);
+    }
+    .cr-time-latest {
+        background: none;
+        border: none;
+        padding: 0;
+        font-size: 11px;
+        font-family: var(--font-mono);
+        color: var(--accent);
+        cursor: pointer;
+    }
+    .cr-time-latest:hover {
+        text-decoration: underline;
+    }
+
+    .cr-x:disabled {
+        opacity: 0.3;
+        cursor: default;
     }
 
     .cr-mem {
@@ -840,6 +1047,10 @@
         font-family: var(--font-mono);
         white-space: nowrap;
         flex-shrink: 0;
+        transition: transform var(--dur-fast) var(--ease-out);
+    }
+    .cl-relax:hover .cl-relax-g {
+        transform: translateX(2px);
     }
 
     .cl-fail-acts {

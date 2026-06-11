@@ -31,9 +31,10 @@ export type MetricRanges = {
     twoq: [number, number];
 };
 
-// Node metric a user can colour the lattice by. A subset of the metrics the
-// scorer understands — see `ScoreMetric` in `$lib/domain/metrics`.
-export type MetricMode = 'readout' | 'T1' | 'T2';
+// Node metric a user can colour the lattice by. 'stability' is cross-snapshot
+// (variance over the device's time series, see `$lib/domain/stability`) and is
+// scored outside `metricScore`, which only understands single-snapshot metrics.
+export type MetricMode = 'readout' | 'T1' | 'T2' | 'stability';
 
 // Direction + signed magnitude of a cluster metric relative to the device
 // median. Rendered as ▲/▼ pills in the read panel; formatted via

@@ -1,46 +1,23 @@
 <script lang="ts">
     import { dashboardState } from "$lib/state/dashboard.svelte";
-    import { prefersReducedMotion } from "$lib/viz/motion";
+    import { themeState } from "$lib/state/theme.svelte";
     import { METRIC_OPTIONS } from "$lib/domain/metrics";
-    import { onMount, flushSync } from "svelte";
+    import { onMount } from "svelte";
 
     const repositoryUrl = "https://github.com/nebmit/qpu";
 
-    let dark = $state(false);
+    let { onOpenPalette } = $props<{ onOpenPalette?: () => void }>();
 
-    function applyTheme(isDark: boolean) {
-        document.documentElement.setAttribute(
-            "data-theme",
-            isDark ? "dark" : "light",
-        );
-    }
-
-    function commitTheme(isDark: boolean) {
-        dark = isDark;
-        localStorage.setItem("theme", isDark ? "dark" : "light");
-        applyTheme(isDark);
-    }
+    let dark = $derived(themeState.dark);
 
     function toggleDark() {
-        const next = !dark;
-        const reduce = prefersReducedMotion.current;
-        const doc = document as Document & {
-            startViewTransition?: (cb: () => void) => unknown;
-        };
-        if (reduce || !doc.startViewTransition) {
-            commitTheme(next);
-            return;
-        }
-        doc.startViewTransition(() => {
-            commitTheme(next);
-            flushSync();
-        });
+        themeState.toggle();
     }
 
     onMount(() => {
         // The theme is resolved and applied pre-paint by the inline script in
         // app.html; just sync the toggle with what's already on the document.
-        dark = document.documentElement.getAttribute("data-theme") === "dark";
+        themeState.sync();
     });
 </script>
 
@@ -93,6 +70,30 @@
 
     <!-- controls zone (aligns with READ column) -->
     <div class="tb-right">
+        {#if onOpenPalette}
+            <button
+                class="kbtn"
+                onclick={onOpenPalette}
+                aria-label="Open command palette"
+                title="Command palette"
+            >
+                <svg
+                    width="13"
+                    height="13"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="1.8"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    aria-hidden="true"
+                >
+                    <circle cx="11" cy="11" r="7" />
+                    <path d="m21 21-4.3-4.3" />
+                </svg>
+                <span class="kbd">Cmd K</span>
+            </button>
+        {/if}
         <!-- Theme toggle -->
         <button
             class="ibtn"
@@ -250,9 +251,38 @@
         view-transition-name: theme-ico;
     }
 
+    /* ── Command palette trigger ───────────────────────────────────── */
+    .kbtn {
+        height: 32px;
+        padding: 0 9px;
+        border-radius: var(--radius-sm);
+        border: 1px solid var(--border);
+        background: var(--surface);
+        color: var(--text-3);
+        cursor: pointer;
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        flex-shrink: 0;
+        transition: all var(--dur-fast);
+    }
+    .kbtn:hover {
+        color: var(--text-2);
+        border-color: var(--border-mid);
+    }
+    .kbtn .kbd {
+        font-family: var(--font-mono);
+        font-size: 10.5px;
+        letter-spacing: 0.02em;
+    }
+
     @media (max-width: 767px) {
         .topbar {
             height: 52px;
+        }
+        /* command palette needs a hardware keyboard */
+        .kbtn {
+            display: none;
         }
         .tb-left {
             width: auto;

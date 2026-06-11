@@ -23,7 +23,44 @@
         return list[list.length - 1]?.date || "—";
     });
 
-    const clearClusterDuringSliderInput = () => dashboardState.clearCluster();
+    const clearClusterDuringSliderInput = () => {
+        dashboardState.isPlaying = false;
+        dashboardState.clearCluster();
+    };
+
+    let qualifyCount = $derived(dashboardState.allowedQubitIds.size);
+
+    // ── Timeline playback ──────────────────────────────────────────────
+    // Step duration leaves the 280ms score morph room to finish per frame.
+    const PLAY_STEP_MS = 650;
+
+    $effect(() => {
+        if (!dashboardState.isPlaying) return;
+        const timer = setInterval(() => {
+            if (dashboardState.timeIdx >= dashboardState.timeCount - 1) {
+                dashboardState.isPlaying = false;
+                return;
+            }
+            dashboardState.timeIdx += 1;
+            // Same convention as range input: a new snapshot
+            // invalidates the found cluster.
+            dashboardState.clearCluster();
+        }, PLAY_STEP_MS);
+        return () => clearInterval(timer);
+    });
+
+    function togglePlay() {
+        if (dashboardState.isPlaying) {
+            dashboardState.isPlaying = false;
+            return;
+        }
+        if (dashboardState.timeCount <= 1) return;
+        if (dashboardState.timeIdx >= dashboardState.timeCount - 1) {
+            dashboardState.timeIdx = 0;
+            dashboardState.clearCluster();
+        }
+        dashboardState.isPlaying = true;
+    }
 </script>
 
 <aside class="plate-operate" class:mob-open={mobileOpen}>
@@ -80,14 +117,39 @@
                 >{dashboardState.snap.date || "—"}</span
             >
         </div>
-        <input
-            type="range"
-            min="0"
-            max={Math.max(0, dashboardState.timeCount - 1)}
-            bind:value={dashboardState.timeIdx}
-            oninput={clearClusterDuringSliderInput}
-            disabled={dashboardState.timeCount <= 1}
-        />
+        <div class="snap-row">
+            <button
+                class="play"
+                class:on={dashboardState.isPlaying}
+                onclick={togglePlay}
+                disabled={dashboardState.timeCount <= 1}
+                aria-pressed={dashboardState.isPlaying}
+                aria-label={dashboardState.isPlaying
+                    ? "Pause snapshot playback"
+                    : "Play snapshot timeline"}
+            >
+                {#if dashboardState.isPlaying}
+                    <svg viewBox="0 0 12 12" fill="currentColor" aria-hidden="true">
+                        <rect x="2.5" y="2" width="2.6" height="8" rx="0.8" />
+                        <rect x="6.9" y="2" width="2.6" height="8" rx="0.8" />
+                    </svg>
+                {:else}
+                    <svg viewBox="0 0 12 12" fill="currentColor" aria-hidden="true">
+                        <path d="M3.4 2.2a.7.7 0 0 1 1.06-.6l6 3.8a.7.7 0 0 1 0 1.2l-6 3.8a.7.7 0 0 1-1.06-.6V2.2Z" />
+                    </svg>
+                {/if}
+            </button>
+            <input
+                type="range"
+                min="0"
+                max={Math.max(0, dashboardState.timeCount - 1)}
+                bind:value={dashboardState.timeIdx}
+                oninput={clearClusterDuringSliderInput}
+                disabled={dashboardState.timeCount <= 1}
+                aria-label="Calibration snapshot"
+                aria-valuetext={dashboardState.snap.date || "no snapshot"}
+            />
+        </div>
         <div class="ends">
             <span>{timeStart}</span>
             <span>{timeEnd}</span>
@@ -101,6 +163,11 @@
                 <span class="step">3</span>
                 <span class="eyebrow">Quality filters</span>
             </div>
+            <span class="qualify font-mono" aria-live="polite">
+                {#key qualifyCount}
+                    <b class="qualify-n">{qualifyCount}</b>
+                {/key}/{dashboardState.totalQubits}&nbsp;Q
+            </span>
         </div>
 
         <div class="sld-sub-h">
@@ -124,6 +191,10 @@
                 step="0.1"
                 bind:value={dashboardState.errorCutoffs.readoutPct}
                 oninput={clearClusterDuringSliderInput}
+                aria-label="Readout error ceiling"
+                aria-valuetext="{dashboardState.errorCutoffs.readoutPct.toFixed(
+                    1,
+                )} percent"
             />
         </div>
 
@@ -144,6 +215,10 @@
                 step="0.1"
                 bind:value={dashboardState.errorCutoffs.twoqPct}
                 oninput={clearClusterDuringSliderInput}
+                aria-label="Two-qubit gate error ceiling"
+                aria-valuetext="{dashboardState.errorCutoffs.twoqPct.toFixed(
+                    1,
+                )} percent"
             />
         </div>
 
@@ -169,6 +244,9 @@
                 step="1"
                 bind:value={dashboardState.coherenceCutoffs.minT1}
                 oninput={clearClusterDuringSliderInput}
+                aria-label="T1 relaxation floor"
+                aria-valuetext="{dashboardState.coherenceCutoffs
+                    .minT1} microseconds"
             />
         </div>
 
@@ -188,6 +266,9 @@
                 step="1"
                 bind:value={dashboardState.coherenceCutoffs.minT2}
                 oninput={clearClusterDuringSliderInput}
+                aria-label="T2 dephasing floor"
+                aria-valuetext="{dashboardState.coherenceCutoffs
+                    .minT2} microseconds"
             />
         </div>
     </div>
@@ -214,6 +295,8 @@
                 step="1"
                 bind:value={dashboardState.clusterSize}
                 oninput={clearClusterDuringSliderInput}
+                aria-label="Cluster size"
+                aria-valuetext="{dashboardState.clusterSize} qubits"
             />
         </div>
 
@@ -298,6 +381,61 @@
         justify-content: center;
         border: 1px solid var(--accent-border);
         border-radius: 5px;
+    }
+
+    /* ── Snapshot playback ─────────────────────────────────────────── */
+    .snap-row {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+    }
+    .snap-row input[type="range"] {
+        flex: 1;
+        min-width: 0;
+    }
+    .play {
+        width: 24px;
+        height: 24px;
+        flex-shrink: 0;
+        display: grid;
+        place-items: center;
+        border: 1px solid var(--border-mid);
+        border-radius: 50%;
+        background: var(--surface);
+        color: var(--text-2);
+        cursor: pointer;
+        transition:
+            color var(--dur-fast),
+            border-color var(--dur-fast),
+            background var(--dur-fast);
+    }
+    .play svg {
+        width: 11px;
+        height: 11px;
+    }
+    .play:hover:not(:disabled) {
+        color: var(--accent);
+        border-color: var(--accent-border);
+    }
+    .play.on {
+        color: var(--accent);
+        background: var(--accent-surface);
+        border-color: var(--accent-border);
+    }
+    .play:disabled {
+        opacity: 0.35;
+        cursor: not-allowed;
+    }
+
+    /* ── Qualifying-count readout ──────────────────────────────────── */
+    .qualify {
+        font-size: 11px;
+        color: var(--text-3);
+        white-space: nowrap;
+    }
+    .qualify-n {
+        font-weight: 600;
+        animation: count-tick var(--dur-base) var(--ease-out) both;
     }
 
     /* ── Sliders ───────────────────────────────────────────────────── */

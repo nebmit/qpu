@@ -13,6 +13,8 @@ import {
     type RelaxSuggestions,
     type Topology
 } from '$lib/domain/cluster';
+import { computeStability, clusterQualityOverTime } from '$lib/domain/stability';
+import { METRIC_OPTIONS } from '$lib/domain/metrics';
 import { QPU_DEVICES } from '$lib/data/calibration';
 import type { Dataset, UiEdge, UiSnapshot, MetricMode, ClusterDelta } from '$lib/types';
 
@@ -44,7 +46,11 @@ export class DashboardState {
     nearestCluster = $state<number[]>([]);
     relaxSuggestions = $state<RelaxSuggestions | null>(null);
     hoveredId = $state<number | null>(null);
+    hoveredEdge = $state<{ source: number; target: number } | null>(null);
     selectedId = $state<number | null>(null);
+
+    // ── Timeline playback ──────────────────────────────────────────────
+    isPlaying = $state(false);
 
     // ── Loaded data, keyed by device ────────────────────────────────────
     totalQubits = $state(TOTAL_QUBITS);
@@ -105,11 +111,12 @@ export class DashboardState {
         };
     });
 
-    clusterStats = $derived.by(() => {
-        if (!this.cluster.length) return null;
-        const cq = this.cluster.map((id) => this.snap.qubits[id]).filter(Boolean);
+    // Aggregate metrics + Δ-vs-median for the active cluster.
+    statsFor(members: number[]) {
+        if (!members.length) return null;
+        const cq = members.map((id) => this.snap.qubits[id]).filter(Boolean);
         if (!cq.length) return null;
-        const clSet = new SvelteSet(this.cluster);
+        const clSet = new SvelteSet(members);
         const ce = this.filteredEdges.filter(
             (e) => clSet.has(e.source) && clSet.has(e.target)
         );
@@ -144,7 +151,17 @@ export class DashboardState {
             deltaRo: delta(ro, med.ro, true),
             deltaTwoq: delta(twoq, med.twoq, true)
         };
-    });
+    }
+
+    clusterStats = $derived.by(() => this.statsFor(this.cluster));
+
+    // ── Cross-snapshot view-models ───────────────────────────────────────
+    stabilityScores = $derived.by(() => computeStability(this.snapshotsByDevice[this.device] || []));
+    clusterTimeline = $derived.by(() =>
+        this.cluster.length
+            ? clusterQualityOverTime(this.cluster, this.snapshotsByDevice[this.device] || [])
+            : []
+    );
 
     // ── Actions ─────────────────────────────────────────────────────────
     clearCluster() {
@@ -155,6 +172,20 @@ export class DashboardState {
         this.nearestCluster = [];
         this.relaxSuggestions = null;
         this.selectedId = null;
+    }
+
+    /** Move the timeline while keeping the cluster — for "view this cluster on that date". */
+    jumpToSnapshot(idx: number) {
+        const list = this.snapshotsByDevice[this.device] || [];
+        if (!list.length) return;
+        this.isPlaying = false;
+        this.timeIdx = Math.min(Math.max(idx, 0), list.length - 1);
+    }
+
+    cycleMetric() {
+        const order = METRIC_OPTIONS.map((o) => o.value);
+        const i = order.indexOf(this.metricMode);
+        this.metricMode = order[(i + 1) % order.length];
     }
 
     clusterFilters(): ClusterFilters {
@@ -174,6 +205,7 @@ export class DashboardState {
     }
 
     runFindCluster() {
+        this.isPlaying = false;
         const result = findCluster(
             this.connRules,
             this.snap.qubits,
@@ -242,6 +274,7 @@ export class DashboardState {
 
     setDevice(dev: string) {
         this.device = dev;
+        this.isPlaying = false;
         this.clearCluster();
         this.ensureTimeIdx(dev);
     }
