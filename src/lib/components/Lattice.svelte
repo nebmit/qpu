@@ -398,8 +398,8 @@
                         typeof e.twoq_error === "number" &&
                         Number.isFinite(e.twoq_error)}
                     {@const t = edgeScore(e, dashboardState.ranges)}
-                    {@const baseOpacity = hasErr ? 0.5 : 0.2}
-                    {@const qw = hasErr ? 0.5 + t * 2.0 : 0.7}
+                    {@const baseOpacity = hasErr ? 0.5 : 0.38}
+                    {@const qw = 0.5 + t * 2.0}
                     {@const isActive =
                         revealActive.has(e.source) &&
                         revealActive.has(e.target)}
@@ -414,6 +414,7 @@
                         x2={b.x}
                         y2={b.y}
                         stroke={LIVE_EDGE_STROKE}
+                        stroke-dasharray={hasErr ? undefined : "2 3"}
                         style:stroke-width={inCl
                             ? isActive
                                 ? qw + 1.0

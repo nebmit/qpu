@@ -195,7 +195,7 @@
             label="Cluster size"
             bind:value={dashboardState.clusterSize}
             min={INPUT_LIMITS.clusterSize.min}
-            max={INPUT_LIMITS.clusterSize.max}
+            max={dashboardState.clusterSizeLimit.max}
             step={1}
             unit="Q"
             ariaLabel="Cluster size"
@@ -203,7 +203,7 @@
             oninput={clearClusterDuringSliderInput}
         />
 
-        <div class="ctrl-lbl">Topology</div>
+        <div class="ctrl-lbl">Topology preference</div>
         <div class="seg full">
             {#each TOPOLOGIES as t (t.value)}
                 <button
@@ -233,7 +233,7 @@
                 onFind?.();
             }}
         >
-            Find best cluster <span class="arr">→</span>
+            Find best match <span class="arr">→</span>
         </button>
     </div>
 </aside>

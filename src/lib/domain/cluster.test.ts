@@ -103,13 +103,24 @@ describe('findCluster', () => {
         expect(findCluster(topoToRules(3, 'linear'), qubits, edges).cluster.sort((a, b) => a - b)).toEqual([3, 4, 5]);
     });
 
-    it('returns a partial cluster when fewer connected qubits are allowed than requested', () => {
+    it('reports region-too-small when fewer connected qubits are allowed than requested', () => {
         const graph = pathGraph(3);
         const result = findCluster(topoToRules(5, 'linear'), graph.qubits, graph.edges);
 
-        expect(result.reason).toBe('ok');
+        expect(result.reason).toBe('region-too-small');
         expect(result.requested).toBe(5);
-        expect(result.cluster).toHaveLength(3);
+        expect(result.cluster).toEqual([]);
+        expect(result.maxComponent).toBe(3);
+    });
+
+    it('keeps topology as a soft preference when only a branched full-size result exists', () => {
+        const graph = starGraph(4);
+        const result = findCluster(topoToRules(4, 'linear'), graph.qubits, graph.edges);
+        const maxDegree = Math.max(...inducedDegrees(result.cluster, graph.edges).values());
+
+        expect(result.reason).toBe('ok');
+        expect(result.cluster).toHaveLength(4);
+        expect(maxDegree).toBeGreaterThan(2);
     });
 
     it('is deterministic for repeated inputs', () => {

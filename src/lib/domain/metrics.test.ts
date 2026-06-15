@@ -66,9 +66,9 @@ describe('edgeScore', () => {
         twoq: [0.001, 0.01]
     };
 
-    it('treats missing or non-finite edge errors as worst', () => {
-        expect(edgeScore(edge(0, 1, null), ranges)).toBe(0);
-        expect(edgeScore(edge(0, 1, Number.NaN), ranges)).toBe(0);
+    it('scores missing or non-finite edge errors neutrally', () => {
+        expect(edgeScore(edge(0, 1, null), ranges)).toBe(0.5);
+        expect(edgeScore(edge(0, 1, Number.NaN), ranges)).toBe(0.5);
     });
 
     it('scores lower two-qubit error higher', () => {

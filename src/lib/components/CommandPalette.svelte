@@ -43,7 +43,7 @@
         cmds.push(
             {
                 id: "find",
-                label: "Find best cluster",
+                label: "Find best match",
                 hint: "F",
                 keywords: ["build", "cluster", "search"],
                 run: () => {

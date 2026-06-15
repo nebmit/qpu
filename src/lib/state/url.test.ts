@@ -43,7 +43,7 @@ describe('URL state', () => {
 
         expect(state.errorCutoffs.readoutPct).toBe(INPUT_LIMITS.readoutPct.max);
         expect(state.coherenceCutoffs.minT1).toBe(INPUT_LIMITS.minT1.min);
-        expect(state.clusterSize).toBe(INPUT_LIMITS.clusterSize.max);
+        expect(state.clusterSize).toBe(state.clusterSizeLimit.max);
     });
 
     it('ignores hostile or unknown values', () => {

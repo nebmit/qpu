@@ -45,6 +45,6 @@ export function metricScore(q: UiQubit, mode: MetricMode, R: MetricRanges): numb
 }
 
 export function edgeScore(e: UiEdge, R: MetricRanges): number {
-    if (typeof e.twoq_error !== 'number' || !Number.isFinite(e.twoq_error)) return 0;
+    if (typeof e.twoq_error !== 'number' || !Number.isFinite(e.twoq_error)) return 0.5;
     return 1 - normalize(e.twoq_error, R.twoq);
 }

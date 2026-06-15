@@ -30,7 +30,7 @@ export function applyUrlState(state: DashboardState, params: URLSearchParams) {
     const t2 = num('t2');
     if (t2 != null) state.coherenceCutoffs.minT2 = clamp(t2, INPUT_LIMITS.minT2);
     const n = num('n');
-    if (n != null) state.clusterSize = clamp(Math.round(n), INPUT_LIMITS.clusterSize);
+    if (n != null) state.clusterSize = clamp(Math.round(n), state.clusterSizeLimit);
     const topo = params.get('topo') as Topology | null;
     if (topo && TOPOLOGY_VALUES.includes(topo)) state.topology = topo;
     const m = params.get('m') as MetricMode | null;

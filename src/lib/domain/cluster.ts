@@ -10,13 +10,9 @@ export const NODE_WEIGHTS = { readout: 0.4, T1: 0.3, T2: 0.3 };
 export const W_NODE = 0.6;
 export const W_EDGE = 0.4;
 
-// The overdegree penalty (0.5) must dominate a single node+edge gain (max 1.0)
-// to reliably block branching in linear mode — it is intentionally large.
-// The endpoint/junction bonuses (0.05) are tie-breakers only; keeping them an
-// order of magnitude smaller than the penalty means they never override quality.
-const TOPO_LINEAR_OVERDEGREE_PENALTY = 0.5;
-const TOPO_LINEAR_ENDPOINT_BONUS = 0.05;
-const TOPO_BRANCHED_JUNCTION_BONUS = 0.05;
+const TOPO_LINEAR_OVERDEGREE_PENALTY = 0.75;
+const TOPO_LINEAR_ENDPOINT_BONUS = 0.08;
+const TOPO_BRANCHED_JUNCTION_BONUS = 0.08;
 
 const RELAX_STEPS: ClusterFilters = {
     readoutPct: 6,
@@ -122,16 +118,14 @@ function buildQualityContext(qubits: UiQubit[], edges: UiEdge[], allowed: Set<nu
             NODE_WEIGHTS.T2 * metricScore(q, 'T2', R)
         );
     };
-    // Unmeasured links are neutral rather than worst, so missing data doesn't unfairly reject an edge.
-    const edgeQuality = (e: UiEdge) =>
-        typeof e.twoq_error === 'number' && Number.isFinite(e.twoq_error) ? edgeScore(e, R) : 0.5;
+    const edgeQuality = (e: UiEdge) => edgeScore(e, R);
     return { allowedEdges, nodeQuality, edgeQuality };
 }
 
 export const TOPO_HINT: Record<Topology, string> = {
-    compact: 'Dense, well-connected block — maximises 2-qubit gate options.',
-    linear: 'A single chain — ideal for 1-D / nearest-neighbour circuits.',
-    branched: 'Tree-like — junctions with reaching endpoints.'
+    compact: 'Prefer dense, well-connected blocks with many 2-qubit gate options.',
+    linear: 'Prefer chain-like growth for 1-D / nearest-neighbour circuits.',
+    branched: 'Prefer junctions with reaching endpoints.'
 };
 
 export function topoToRules(n: number, topo: Topology): ConnRules {
@@ -156,7 +150,7 @@ export function findCluster(
         return { cluster: [], requested: 0, maxComponent: 0, allowedCount: allowed.size, reason: 'ok' };
     }
     const ids = [...allowed];
-    const needed = Math.min(total, ids.length);
+    const needed = total;
 
     const { sizeByNode: componentSize, largest: largestComp } = analyzeComponents(adj);
     const maxComponent = largestComp.length;

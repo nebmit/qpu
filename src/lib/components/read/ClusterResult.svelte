@@ -14,11 +14,6 @@
             : dashboardState.cluster.length,
     );
 
-    let isPartial = $derived(
-        dashboardState.cluster.length > 0 &&
-            requestedSize > dashboardState.cluster.length,
-    );
-
     let timelineAbove = $derived(
         dashboardState.clusterTimeline.filter(
             (p) => p.cluster != null && p.cluster >= p.device,
@@ -59,7 +54,7 @@
 
 <div class="cr fade-in">
     <div class="cr-top">
-        <span class="cr-eye"><span class="cr-dot"></span>Best cluster</span>
+        <span class="cr-eye"><span class="cr-dot"></span>Best matching cluster</span>
         <button
             class="cr-x"
             onclick={() => dashboardState.clearCluster()}
@@ -83,34 +78,6 @@
         <span class="cr-of">/ {requestedSize} Q</span>
         <span class="cr-topo">{dashboardState.topology}</span>
     </div>
-
-    {#if isPartial}
-        <div class="cr-warn">
-            <svg
-                viewBox="0 0 16 16"
-                fill="none"
-                stroke="currentColor"
-                stroke-width="1.6"
-                stroke-linecap="round"
-                stroke-linejoin="round"
-            >
-                <path d="M8 2.2 1.6 13.4h12.8L8 2.2Z" />
-                <path d="M8 6.4v3.1" />
-                <circle
-                    cx="8"
-                    cy="11.4"
-                    r="0.5"
-                    fill="currentColor"
-                    stroke="none"
-                />
-            </svg>
-            <div class="cr-warn-tx">
-                <b>{dashboardState.cluster.length} of {requestedSize}</b>
-                qubits placed — the qualifying subgraph is fragmented. Loosen a filter
-                or lower the size for a complete block.
-            </div>
-        </div>
-    {/if}
 
     {@render metricRows(stats)}
     <div class="cr-vsmed">vs device median · ▲ = better</div>
@@ -453,33 +420,6 @@
         background: var(--accent);
         color: var(--accent-fg);
         border-color: var(--accent);
-    }
-
-    .cr-warn {
-        display: flex;
-        gap: 8px;
-        align-items: flex-start;
-        margin: 0 16px 14px;
-        padding: 9px 11px;
-        background: var(--warn-bg);
-        border: 1px solid var(--warn-border);
-        border-radius: var(--radius-sm);
-    }
-    .cr-warn svg {
-        width: 14px;
-        height: 14px;
-        color: var(--warn);
-        flex-shrink: 0;
-        margin-top: 1px;
-    }
-    .cr-warn-tx {
-        font-size: 12.5px;
-        line-height: 1.5;
-        color: var(--text-2);
-    }
-    .cr-warn-tx b {
-        color: var(--text);
-        font-weight: 600;
     }
 
     @media (min-width: 768px) and (max-width: 1199px) {

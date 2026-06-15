@@ -36,8 +36,13 @@ export const INPUT_LIMITS = {
     twoqPct: { min: 0, max: 100 },
     minT1: { min: 0, max: 500 },
     minT2: { min: 0, max: 500 },
-    clusterSize: { min: 2, max: 50 }
+    clusterSize: { min: 2, max: TOTAL_QUBITS }
 } as const;
+
+const clusterSizeLimitFor = (totalQubits: number) => ({
+    min: INPUT_LIMITS.clusterSize.min,
+    max: Math.max(INPUT_LIMITS.clusterSize.min, totalQubits)
+});
 
 export class DashboardState {
     devices = $state<string[]>(QPU_DEVICES);
@@ -95,6 +100,7 @@ export class DashboardState {
     ranges = $derived(computeRanges(this.filteredQubits, this.filteredEdges));
     totalConnections = $derived(ruleTotal(this.connRules));
     timeCount = $derived(this.deviceSnapshots.length);
+    clusterSizeLimit = $derived(clusterSizeLimitFor(this.totalQubits));
 
     stats = $derived.by(() => {
         const q = this.snap.qubits;
@@ -170,7 +176,7 @@ export class DashboardState {
             ? DEFAULT_DEVICE
             : (this.devices[0] ?? this.device);
         this.metricMode = DEFAULT_METRIC_MODE;
-        this.clusterSize = DEFAULT_CLUSTER_SIZE;
+        this.clusterSize = Math.min(DEFAULT_CLUSTER_SIZE, this.clusterSizeLimit.max);
         this.topology = DEFAULT_TOPOLOGY;
         this.errorCutoffs = { ...DEFAULT_ERROR_CUTOFFS };
         this.coherenceCutoffs = { ...DEFAULT_COHERENCE_CUTOFFS };
@@ -260,7 +266,7 @@ export class DashboardState {
             (e) => clSet.has(e.source) && clSet.has(e.target)
         ).length;
 
-        if (result.cluster.length < 2 || internalLinks === 0) {
+        if (result.reason !== 'ok' || result.cluster.length !== result.requested || result.cluster.length < 2 || internalLinks === 0) {
             this.cluster = [];
             this.findFailed = true;
             this.findFailReason = result.reason === 'ok' ? 'region-too-small' : result.reason;
@@ -285,11 +291,17 @@ export class DashboardState {
         this.relaxSuggestions = null;
     }
 
-    shrinkToNearestAndRetry() {
-        const target = this.nearestCluster.length >= 2
+    useLargestRegionAndRetry() {
+        const target = this.nearestCluster.length >= INPUT_LIMITS.clusterSize.min
             ? this.nearestCluster.length
             : Math.min(this.allowedQubitIds.size, 8);
-        this.clusterSize = Math.max(2, target);
+        this.clusterSize = Math.min(
+            this.clusterSizeLimit.max,
+            Math.max(INPUT_LIMITS.clusterSize.min, target)
+        );
+        if (this.findFailReason === 'topology-unplaceable') {
+            this.topology = 'compact';
+        }
         this.runFindCluster();
     }
 
@@ -321,6 +333,7 @@ export class DashboardState {
     applyDataset(dataset: Dataset) {
         this.pauseTimeline();
         this.totalQubits = dataset.meta?.n_qubits ?? TOTAL_QUBITS;
+        this.clusterSize = Math.min(this.clusterSize, clusterSizeLimitFor(this.totalQubits).max);
         const couplingMap = dataset.coupling_map || {};
         const snapshotsByDevice: Record<string, UiSnapshot[]> = {};
         const baseEdgesByDevice: Record<string, UiEdge[]> = {};

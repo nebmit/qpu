@@ -27,12 +27,11 @@
         <div>
             {#if dashboardState.findFailReason === "topology-unplaceable"}
                 <div class="cl-fail-h">
-                    Can't arrange {requestedSize} qubits as a {dashboardState.topology}
-                    cluster
+                    Can't find a {requestedSize}Q match
                 </div>
                 <div class="cl-fail-sub">
-                    Qualifying region: <b>{dashboardState.nearestCluster.length}Q</b>
-                    — the requested arrangement doesn't fit
+                    Largest connected region available:
+                    <b>{dashboardState.nearestCluster.length}Q</b>
                 </div>
             {:else}
                 <div class="cl-fail-h">
@@ -48,10 +47,9 @@
 
     {#if dashboardState.findFailReason === "topology-unplaceable"}
         <p class="cl-fail-p">
-            A <b>{dashboardState.nearestCluster.length}Q</b> connected region
-            qualifies, but no <b>{dashboardState.topology}</b> arrangement of
-            {requestedSize} qubits fits within it. Lower the cluster size or switch
-            to a different topology.
+            The current <b>{dashboardState.topology}</b> preference could not
+            grow a complete match. Use the largest qualifying region, relax a
+            filter, or pick a different preference.
         </p>
     {:else}
         <p class="cl-fail-p">
@@ -77,10 +75,10 @@
     {/if}
 
     <div class="cl-fail-acts">
-        {#if dashboardState.nearestCluster.length >= 2 && !(dashboardState.findFailReason === "topology-unplaceable" && dashboardState.nearestCluster.length >= requestedSize)}
+        {#if dashboardState.nearestCluster.length >= 2}
             <button
                 class="cl-fail-btn primary"
-                onclick={() => dashboardState.shrinkToNearestAndRetry()}
+                onclick={() => dashboardState.useLargestRegionAndRetry()}
             >
                 <svg
                     viewBox="0 0 16 16"
@@ -92,7 +90,7 @@
                 >
                     <path d="M3 8.5l3.2 3.2L13 4.8" />
                 </svg>
-                Use the {dashboardState.nearestCluster.length}Q region
+                Use largest {dashboardState.nearestCluster.length}Q region
             </button>
         {/if}
     </div>
