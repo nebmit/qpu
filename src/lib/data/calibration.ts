@@ -5,15 +5,13 @@ export const QPU_DEVICES = ['ibm_fez', 'ibm_kingston', 'ibm_marrakesh'];
 
 export type ProgressCallback = (pct: number, received: number, total: number | null) => void;
 
-async function fetchJson<T>(url: string, onProgress?: ProgressCallback, knownTotal?: number | null): Promise<T> {
+const ASSET_TOTAL = (ASSET_SIZES['/dataset.json'] ?? 0) + (ASSET_SIZES['/positions.json'] ?? 0);
+
+async function fetchJson<T>(url: string, onBytes?: (received: number) => void): Promise<T> {
     const response = await fetch(url);
     if (!response.ok) throw new Error(`HTTP ${response.status} ${response.statusText}`);
-    if (!onProgress || !response.body) return response.json() as Promise<T>;
+    if (!onBytes || !response.body) return response.json() as Promise<T>;
 
-    const contentEncoding = response.headers.get('Content-Encoding');
-    const isCompressed = !!contentEncoding && contentEncoding !== 'identity';
-    const headerTotal = isCompressed ? null : parseInt(response.headers.get('Content-Length') ?? '') || null;
-    const total = headerTotal ?? knownTotal ?? null;
     const reader = response.body.getReader();
     const chunks: Uint8Array[] = [];
     let received = 0;
@@ -23,7 +21,7 @@ async function fetchJson<T>(url: string, onProgress?: ProgressCallback, knownTot
         if (done) break;
         chunks.push(value);
         received += value.length;
-        onProgress(total ? received / total : 0, received, total);
+        onBytes(received);
     }
 
     const all = new Uint8Array(received);
@@ -34,32 +32,17 @@ async function fetchJson<T>(url: string, onProgress?: ProgressCallback, knownTot
 
 export async function loadData(onProgress?: ProgressCallback) {
     let datasetBytes = 0;
-    let datasetTotal: number | null = null;
     let positionsBytes = 0;
-    let positionsTotal: number | null = null;
 
-    function combined() {
+    function report() {
         const recv = datasetBytes + positionsBytes;
-        const total =
-            datasetTotal !== null && positionsTotal !== null
-                ? datasetTotal + positionsTotal
-                : null;
-        const p = total ? recv / total : datasetTotal ? datasetBytes / datasetTotal * 0.95 : 0;
-        onProgress?.(Math.min(1, p), recv, total);
+        onProgress?.(ASSET_TOTAL ? Math.min(1, recv / ASSET_TOTAL) : 0, recv, ASSET_TOTAL || null);
     }
 
     const [dataset, positions] = await Promise.all([
-        fetchJson<Dataset>('/dataset.json', onProgress ? (_, recv, total) => {
-            datasetBytes = recv;
-            datasetTotal = total;
-            combined();
-        } : undefined, ASSET_SIZES['/dataset.json']),
-        fetchJson<Positions>('/positions.json', onProgress ? (_, recv, total) => {
-            positionsBytes = recv;
-            positionsTotal = total;
-            combined();
-        } : undefined, ASSET_SIZES['/positions.json']),
+        fetchJson<Dataset>('/dataset.json', onProgress ? (recv) => { datasetBytes = recv; report(); } : undefined),
+        fetchJson<Positions>('/positions.json', onProgress ? (recv) => { positionsBytes = recv; report(); } : undefined),
     ]);
-    onProgress?.(1, datasetBytes + positionsBytes, datasetTotal !== null && positionsTotal !== null ? datasetTotal + positionsTotal : null);
+    onProgress?.(1, datasetBytes + positionsBytes, ASSET_TOTAL || null);
     return { dataset, positions };
 }
