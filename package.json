@@ -2,6 +2,25 @@
 	"name": "qpu",
 	"private": true,
 	"version": "0.0.1",
+	"description": "Interactive QPU calibration visualizer",
+	"homepage": "https://qpu.timben.net",
+	"repository": {
+		"type": "git",
+		"url": "git+https://github.com/nebmit/qpu.git"
+	},
+	"bugs": {
+		"url": "https://github.com/nebmit/qpu/issues"
+	},
+	"keywords": [
+		"qpu",
+		"quantum-computing",
+		"calibration",
+		"ibm-quantum",
+		"heavy-hex",
+		"visualization",
+		"sveltekit",
+		"d3"
+	],
 	"type": "module",
 	"engines": {
 		"node": ">=24"
@@ -14,6 +33,7 @@
 		"check": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json",
 		"check:watch": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json --watch",
 		"lint": "eslint .",
+		"lint:fix": "eslint . --fix",
 		"test": "vitest run",
 		"test:watch": "vitest"
 	},
@@ -21,22 +41,22 @@
 		"@eslint/compat": "^2.1.0",
 		"@eslint/js": "^10.0.1",
 		"@sveltejs/adapter-node": "^5.5.4",
-		"@sveltejs/kit": "^2.63.0",
+		"@sveltejs/kit": "^2.65.1",
 		"@sveltejs/vite-plugin-svelte": "^7.1.2",
-		"@tailwindcss/typography": "^0.5.19",
-		"@tailwindcss/vite": "^4.3.0",
+		"@tailwindcss/typography": "^0.5.20",
+		"@tailwindcss/vite": "^4.3.1",
 		"@types/d3": "^7.4.3",
-		"@types/node": "^24.13.0",
-		"eslint": "^10.4.1",
+		"@types/node": "^24.13.2",
+		"eslint": "^10.5.0",
 		"eslint-plugin-svelte": "^3.19.0",
 		"globals": "^17.6.0",
-		"svelte": "^5.56.2",
+		"svelte": "^5.56.3",
 		"svelte-check": "^4.6.0",
 		"tailwindcss": "^4.2.2",
 		"typescript": "^6.0.3",
-		"typescript-eslint": "^8.60.1",
+		"typescript-eslint": "^8.61.0",
 		"vite": "^8.0.16",
-		"vitest": "^4.1.8"
+		"vitest": "^4.1.9"
 	},
 	"dependencies": {
 		"@fontsource-variable/geist": "^5.2.9",

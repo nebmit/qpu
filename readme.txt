@@ -9,6 +9,9 @@ Implemented Visualisation Techniques:
 - Edge opacity and width encode 2Q gate quality, with separate styling for filtered/dead couplings
 - Inline legends, median summaries, cluster history bars, and per-qubit sparklines summarize quality trends
 
+View deployed version:
+https://qpu.timben.net
+
 How to start:
 docker build -t qpu . && docker run -p 3000:3000 qpu
 # Open http://localhost:3000
