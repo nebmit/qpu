@@ -1,7 +1,7 @@
 {
 	"name": "qpu",
 	"private": true,
-	"version": "0.0.1",
+	"version": "1.0.0",
 	"description": "Interactive QPU calibration visualizer",
 	"homepage": "https://qpu.timben.net",
 	"repository": {
