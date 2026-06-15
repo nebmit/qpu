@@ -1,17 +1,19 @@
 import type { Dataset, Positions } from '$lib/types';
+import { ASSET_SIZES } from 'virtual:asset-sizes';
 
 export const QPU_DEVICES = ['ibm_fez', 'ibm_kingston', 'ibm_marrakesh'];
 
 export type ProgressCallback = (pct: number, received: number, total: number | null) => void;
 
-async function fetchJson<T>(url: string, onProgress?: ProgressCallback): Promise<T> {
+async function fetchJson<T>(url: string, onProgress?: ProgressCallback, knownTotal?: number | null): Promise<T> {
     const response = await fetch(url);
     if (!response.ok) throw new Error(`HTTP ${response.status} ${response.statusText}`);
     if (!onProgress || !response.body) return response.json() as Promise<T>;
 
     const contentEncoding = response.headers.get('Content-Encoding');
     const isCompressed = !!contentEncoding && contentEncoding !== 'identity';
-    const total = isCompressed ? null : parseInt(response.headers.get('Content-Length') ?? '') || null;
+    const headerTotal = isCompressed ? null : parseInt(response.headers.get('Content-Length') ?? '') || null;
+    const total = headerTotal ?? knownTotal ?? null;
     const reader = response.body.getReader();
     const chunks: Uint8Array[] = [];
     let received = 0;
@@ -51,12 +53,12 @@ export async function loadData(onProgress?: ProgressCallback) {
             datasetBytes = recv;
             datasetTotal = total;
             combined();
-        } : undefined),
+        } : undefined, ASSET_SIZES['/dataset.json']),
         fetchJson<Positions>('/positions.json', onProgress ? (_, recv, total) => {
             positionsBytes = recv;
             positionsTotal = total;
             combined();
-        } : undefined),
+        } : undefined, ASSET_SIZES['/positions.json']),
     ]);
     onProgress?.(1, datasetBytes + positionsBytes, datasetTotal !== null && positionsTotal !== null ? datasetTotal + positionsTotal : null);
     return { dataset, positions };
